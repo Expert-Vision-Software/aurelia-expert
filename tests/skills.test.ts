@@ -1,6 +1,7 @@
 import { test, expect, describe } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { parse as parseYaml } from "yaml";
 import {
   isOurPluginEntry,
   normalizePluginName,
@@ -63,6 +64,20 @@ describe("bundled skills", () => {
       const compatibility: string | null = readFrontmatterField(frontmatter, "compatibility");
       expect(compatibility).not.toBeNull();
       expect(compatibility?.includes(",")).toBe(true);
+    });
+
+    test(`${name} frontmatter parses as valid YAML with string name and description`, async () => {
+      const content: string = await loadSkillFile(name, "SKILL.md");
+      const frontmatter: string | null = extractFrontmatter(content);
+      expect(frontmatter).not.toBeNull();
+      if (frontmatter === null) {
+        return;
+      }
+      const parsed: unknown = parseYaml(frontmatter);
+      const record = parsed as Record<string, unknown>;
+      expect(typeof record.name).toBe("string");
+      expect(typeof record.description).toBe("string");
+      expect(record.description as string).not.toContain(": ");
     });
 
     test(`${name} frontmatter declares area and leading-word metadata`, async () => {

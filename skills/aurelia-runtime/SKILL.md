@@ -1,6 +1,6 @@
 ---
 name: aurelia-runtime
-description: Use when wiring an Aurelia v2 component — resolves dependency injection, routing, navigation, AppTasks, custom events, and cross-feature orchestration. Use when injecting services, configuring `@route`, navigating programmatically, sharing state between features, declaring AppTasks, or paginating components. Leading word: resolve.
+description: Use when wiring an Aurelia v2 component — resolves dependency injection, routing, navigation, AppTasks, custom events, and cross-feature orchestration. Use when injecting services, configuring `@route`, navigating programmatically, sharing state between features, declaring AppTasks, or paginating components. Leading word — resolve.
 license: MIT
 compatibility: opencode, claude-code, and any skill-compatible agent
 metadata:
