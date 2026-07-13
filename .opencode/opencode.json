@@ -1,5 +1,22 @@
 {
-    "$schema": "https://opencode.ai/config.json",
-    "plugin": ["file:///C:/dev/projects/github/opencode-architect"],
-    "skills": { "paths": ["../.agents/skills"] }
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    "file:///C:/dev/projects/github/opencode-architect",
+    "aurelia-expert"
+  ],
+  "skills": {
+    "paths": [
+      "../.agents/skills",
+      "../skills"
+    ]
+  },
+  "permission": {
+    "skill": {
+      "aurelia-expert": "allow",
+      "aurelia-foundation": "allow",
+      "aurelia-runtime": "allow",
+      "aurelia-largespa": "allow",
+      "aurelia-migration": "allow"
+    }
+  }
 }
