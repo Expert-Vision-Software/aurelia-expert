@@ -66,7 +66,7 @@
 <testing>
 <runner>bun test</runner>
 <files>
-- tests/skills.test.ts — frontmatter validation, area/leading-word metadata assertions, reference-file non-emptiness, self-config structure, plugin-name normalization round-trip
+- tests/skills.test.ts — frontmatter validation, YAML-parse regression (colon-space guard), area/leading-word metadata assertions, reference-file non-emptiness, self-config structure, plugin-name normalization round-trip
 - tests/installer.test.ts — mocked temp project + global dirs; install/uninstall/status round-trips; idempotent re-install (case-insensitive, `@<version>` stripped); legacy `opencode.json` → `.opencode/opencode.json` migration
 </files>
 <runner>bun run check</runner>
@@ -89,4 +89,6 @@
 4. Function declarations, not `const name = () => {}`. Place declarations BELOW first usage.
 5. The `leading-word` field on each skill's frontmatter is the agent's primary dispatch key. Do not rename it without updating `aurelia-expert`'s router.
 6. Skill content is the source of truth. Do not add runnable code under `src/` that is not part of the install/uninstall/status surface.
+7. Dev-only skills in `.agents/skills/` (notebooklm, writing-great-skills) carry `metadata.internal: true` so `npx skills` skips them during discovery and listing. **`npx skills update` overwrites SKILL.md from the upstream source and drops this flag** — re-apply `metadata.internal: true` after every update.
+8. Unquoted YAML description values must never contain `: ` (colon-space) — it triggers a nested-mapping parse error in the skills CLI, silently dropping the skill. Use ` — ` (em-dash space) instead. The YAML-parse regression test in `tests/skills.test.ts` enforces this.
 </coding_rules>
