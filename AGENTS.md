@@ -1,7 +1,7 @@
 # AGENTS.md - aurelia-expert
 
 <critical_rules priority="highest">
-1. The seven bundled skills describe **Aurelia v2 only**. The seven v1 APIs are prohibitions in every pillar: `.delegate` on custom events (throws AUR0713 at compile time), `<router-view>`, `PLATFORM.moduleName`, `configureRouter`, `<compose>`, `activate/deactivate`. `@inject` is **DEPRECATED** (still valid, `resolve()` is preferred) — it must not be stated as REMOVED. Severity levels in `reference/v1-removals.md` are the authoritative classification; never contradict them in skill bodies.
+1. The seven bundled skills describe **Aurelia v2 only**. Six of the seven v1 patterns are prohibited (REMOVED or compile-time error): `.delegate` on custom events (throws AUR0713 at compile time), `<router-view>`, `PLATFORM.moduleName`, `configureRouter`, `<compose>`, `activate/deactivate`. `@inject` is **DEPRECATED** (still valid, `resolve()` is preferred) — it must not be stated as REMOVED. Severity levels in `reference/v1-removals.md` are the authoritative classification; never contradict them in skill bodies.
 2. `au-northwind` is **STRUCTURAL ONLY**. Reference it for folder layout, slice boundaries, and hierarchical `Agents.md` patterns — never as an Aurelia v2 API source. The `aurelia-largespa/reference/au-northwind-pointer.md` is the single source of truth for this guardrail; do not duplicate it elsewhere.
 3. The router (`aurelia-expert`) is the **single entry point**. It hands off to a pillar and stops. The six pillars are peer-skills, not nested; never re-route from one pillar to another. If two branches both fit, defer to the more specific one (`aurelia-migration` > `aurelia-largespa` for migration-of-large-SPA prompts; `aurelia-migration` > `aurelia-component-library` for migration-with-library prompts; `aurelia-migration` > `aurelia-plugin` for packaging-v1-source prompts; see `aurelia-expert/SKILL.md` Precedence section).
 4. The active project's local Aurelia instructions file (`AGENTS.md`, `CLAUDE.md`, or repo conventions) **overrides** anything in this package. The pillars' guardrails (`.trigger`, kebab-case, `import type`, `.style` property binding, singleton DI over EventAggregator, Models not DTOs) are defaults; project rules win.
@@ -96,7 +96,7 @@
 </coding_rules>
 
 <skill_content_rules>
-The following教训 emerged from a systematic DeepWiki validation sweep of all seven pillars. Violations
+The following教训 emerged from a systematic DeepWiki validation sweep of all seven skills. Violations
 of any rule below have shipped into released skill content and required patches.
 
 ## Source hierarchy

@@ -36,4 +36,4 @@ Do not copy route configuration, module loading expressions, view outlets, dynam
 
 ## Review gate
 
-Before accepting code influenced by au-northwind (**STRUCTURAL ONLY**), search the changed files for all seven prohibited v1 patterns listed in the guardrail. If any appears as executable code, replace it with the v2 target and repeat the search. Historical prose or migration tests must label the pattern as v1 and forbidden.
+Before accepting code influenced by au-northwind (**STRUCTURAL ONLY**), search the changed files for all six prohibited v1 patterns (`.delegate` → AUR0713, `PLATFORM.moduleName`, `configureRouter`, `<router-view>`, `<compose>`, `activate/deactivate`) and the one deprecated pattern (`@inject`, prefer `resolve()`). If any appears as executable code, replace it with the v2 target and repeat the search. Historical prose or migration tests must label the pattern as v1 and forbidden.

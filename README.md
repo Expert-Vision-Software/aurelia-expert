@@ -1,17 +1,17 @@
 <!--
-  SEO description: Five router-routed Aurelia v2 MVVM skills for AI coding agents —
-  branch, scaffold, resolve, slice, lift. Works with OpenCode, Claude Code, and any
+  SEO description: Seven router-routed Aurelia v2 MVVM skills for AI coding agents —
+  branch, scaffold, resolve, assemble, slice, lift, package. Works with OpenCode, Claude Code, and any
   skill-compatible AI agent.
   Keywords: Aurelia 2, Aurelia expert, MVVM, SPA, feature-first, scaffolding,
-  dependency injection, large SPA structure, v1 to v2 migration, AI agent skills,
-  OpenCode plugin, skills.sh
+  dependency injection, large SPA structure, v1 to v2 migration, component library,
+  plugin packaging, AI agent skills, OpenCode plugin, skills.sh
 -->
 
 <div align="center">
 
 # aurelia-expert
 
-**Five router-routed Aurelia v2 MVVM skills for AI coding agents**
+**Seven router-routed Aurelia v2 MVVM skills for AI coding agents**
 
 [![OpenCode Plugin](https://img.shields.io/badge/OpenCode-Plugin-blue?link=https://opencode.ai)](https://opencode.ai)
 [![npm version](https://img.shields.io/npm/v/aurelia-expert?label=npm)](https://www.npmjs.com/package/aurelia-expert)
@@ -23,7 +23,7 @@
 
 ---
 
-Bring senior-grade **Aurelia v2** expertise into every AI agent session. This package bundles **six router-routed skills** — one thin router (`aurelia-expert`) and five pillar skills (`aurelia-foundation`, `aurelia-runtime`, `aurelia-component-library`, `aurelia-largespa`, `aurelia-migration`) — so any compatible agent picks the right pillar on its own and never confuses Aurelia 1 with Aurelia 2.
+Bring senior-grade **Aurelia v2** expertise into every AI agent session. This package bundles **seven router-routed skills** — one thin router (`aurelia-expert`) and six pillar skills (`aurelia-foundation`, `aurelia-runtime`, `aurelia-component-library`, `aurelia-largespa`, `aurelia-migration`, `aurelia-plugin`) — so any compatible agent picks the right pillar on its own and never confuses Aurelia 1 with Aurelia 2.
 
 Works with [OpenCode](https://opencode.ai), Claude Code, and any agent that supports the `skill` tool or can invoke CLI-installed skills via `bunx` / `npx`.
 
@@ -125,7 +125,7 @@ Run this table once per file (reference/v1-removals.md):
   configureRouter(config)             →  @route([...])
   <router-view>                       →  <au-viewport>
   <compose viewModel="...">           →  <au-compose component.bind="...">
-  .delegate on a custom event         →  .trigger (throws AUR0009)
+  .delegate on a custom event         →  .trigger (throws AUR0713 at compile time)
   activate() / deactivate()           →  canLoad / loading / canUnload / unloading
   inline style="width: ${value}%"     →  width.style="value + '%'"
 ```
@@ -201,7 +201,7 @@ If a future conflict forces a rename, we'll publish `@expert-vision-software/aur
 
 ## Why this plugin?
 
-- **v1 vs v2 contamination is impossible** — the seven forbidden v1 APIs (`.delegate`, `<router-view>`, `PLATFORM.moduleName`, `configureRouter`, `<compose>`, `@inject`, `activate/deactivate`) are pinned as prohibitions across every pillar.
+- **v1 vs v2 contamination is impossible** — the six forbidden v1 APIs (`.delegate` → AUR0713, `<router-view>`, `PLATFORM.moduleName`, `configureRouter`, `<compose>`, `activate/deactivate`) are pinned as prohibitions across every pillar. `@inject` is DEPRECATED — still valid, `resolve()` is preferred.
 - **Predictable routing** — every skill carries a `leading-word` (branch, scaffold, resolve, slice, lift); the router classifies in one pass and stops.
 - **Hierarchical Agent instructions** — `aurelia-largespa` teaches how to author `Agents.md` files at root + directory scope, so project conventions override the skill defaults.
 - **Markdown-only bundle** — pure skill content, no runtime dependencies, zero overhead until the agent decides to load a skill.

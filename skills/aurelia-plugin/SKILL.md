@@ -50,15 +50,15 @@ These are restated here for convenience. The canonical always-do list lives in `
 
 ## V1 contamination
 
-The seven v1 APIs below are pinned prohibitions in every pillar. **Never package v1 code in place** — lift it first. The canonical table with v2 replacements lives in `aurelia-migration/reference/v1-removals.md`; this pillar defers to it.
+The six v1 APIs below are pinned prohibitions in every pillar. `@inject` is deprecated — prefer `resolve()` but it still works. **Never package v1 code in place** — lift first. The canonical table with v2 replacements lives in `aurelia-migration/reference/v1-removals.md`; this pillar defers to it.
 
 - `.delegate` on custom events → **AUR0713** (compile-time) → `.trigger`
-- `@inject(...)` decorator → `resolve()` functional API
 - `PLATFORM.moduleName('...')` → native bundler import
 - `configureRouter(...)` callback → `@route` decorator
 - `<router-view>` → `<au-viewport>`
 - `<compose view-model="...">` → `<au-compose component="...">`
 - `activate(params)` / `deactivate()` → `canLoad` / `loading` / `canUnload` / `unloading`
+- `@inject(...)` decorator → `resolve()` functional API (DEPRECATED — still valid, `resolve()` preferred)
 
 The extraction reference ([extract.md](reference/extract.md)) opens with a gate that scans for every pattern above; if any is found, it routes to `aurelia-migration` before any structural move.
 

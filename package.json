@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "type": "module",
   "module": "index.ts",
-  "description": "Aurelia v2 MVVM SPA expertise skill package — 5 router-routed skills (foundation, runtime, largespa, migration) for AI coding agents",
+  "description": "Aurelia v2 MVVM SPA expertise skill package — 7 router-routed skills (expert, foundation, runtime, component-library, largespa, migration, plugin) for AI coding agents",
   "license": "MIT",
   "publisher": "Expert Vision Software",
   "author": "Expert Vision Software",
