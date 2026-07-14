@@ -1,7 +1,7 @@
 # AGENTS.md - aurelia-expert
 
 <critical_rules priority="highest">
-1. The seven bundled skills describe **Aurelia v2 only**. The seven v1 APIs — `.delegate` (on custom events), `<router-view>`, `PLATFORM.moduleName`, `configureRouter`, `<compose>`, `@inject`, `activate/deactivate` — are pinned as prohibitions in every pillar. Never soften a prohibition in `skills/*/SKILL.md` or `reference/*.md`.
+1. The seven bundled skills describe **Aurelia v2 only**. Six of the seven v1 patterns are prohibited (REMOVED or compile-time error): `.delegate` on custom events (throws AUR0713 at compile time), `<router-view>`, `PLATFORM.moduleName`, `configureRouter`, `<compose>`, `activate/deactivate`. `@inject` is **DEPRECATED** (still valid, `resolve()` is preferred) — it must not be stated as REMOVED. Severity levels in `reference/v1-removals.md` are the authoritative classification; never contradict them in skill bodies.
 2. `au-northwind` is **STRUCTURAL ONLY**. Reference it for folder layout, slice boundaries, and hierarchical `Agents.md` patterns — never as an Aurelia v2 API source. The `aurelia-largespa/reference/au-northwind-pointer.md` is the single source of truth for this guardrail; do not duplicate it elsewhere.
 3. The router (`aurelia-expert`) is the **single entry point**. It hands off to a pillar and stops. The six pillars are peer-skills, not nested; never re-route from one pillar to another. If two branches both fit, defer to the more specific one (`aurelia-migration` > `aurelia-largespa` for migration-of-large-SPA prompts; `aurelia-migration` > `aurelia-component-library` for migration-with-library prompts; `aurelia-migration` > `aurelia-plugin` for packaging-v1-source prompts; see `aurelia-expert/SKILL.md` Precedence section).
 4. The active project's local Aurelia instructions file (`AGENTS.md`, `CLAUDE.md`, or repo conventions) **overrides** anything in this package. The pillars' guardrails (`.trigger`, kebab-case, `import type`, `.style` property binding, singleton DI over EventAggregator, Models not DTOs) are defaults; project rules win.
@@ -94,3 +94,59 @@
 7. Dev-only skills in `.agents/skills/` (notebooklm, writing-great-skills) carry `metadata.internal: true` so `npx skills` skips them during discovery and listing. **`npx skills update` overwrites SKILL.md from the upstream source and drops this flag** — re-apply `metadata.internal: true` after every update.
 8. Unquoted YAML description values must never contain `: ` (colon-space) — it triggers a nested-mapping parse error in the skills CLI, silently dropping the skill. Use ` — ` (em-dash space) instead. The YAML-parse regression test in `tests/skills.test.ts` enforces this.
 </coding_rules>
+
+<skill_content_rules>
+The following教训 emerged from a systematic DeepWiki validation sweep of all seven skills. Violations
+of any rule below have shipped into released skill content and required patches.
+
+## Source hierarchy
+
+| Source | Role | When to use |
+|--------|------|-------------|
+| `aurelia/aurelia` GitHub (`packages/<pkg>/docs/*.md`) | **Primary ground truth** — direct source, not docs site | Confirming any API claim: error codes, binding commands, decorator presence, lifecycle hooks, DI semantics |
+| DeepWiki (`deepwiki_ask_question` against `aurelia/aurelia`) | **Primary validator** — AI-grounded in current source; returns file paths | Validating prescriptive rules before they ship; catching stale docs |
+| `docs.aurelia.io` | Overview and tutorial content only | Initial orientation, not API detail |
+| NotebookLM | **Hypothesis generator** — useful for exploring patterns, connections, and unknowns | Generate hypotheses; **always confirm against DeepWiki or direct source** before writing into skill content |
+| `reference/v1-removals.md` | Canonical "what not to do" table | Single source of truth for prohibition claims |
+
+## Never cite an error code without source confirmation
+
+Error codes are implementation details that change between releases. AUR0009 vs AUR0713 is a real example: the v1-removals table carried AUR0009 (from a v1-era mental model), but the v2 template compiler emits AUR0713 for unknown binding commands. Validate error codes against `aurelia/aurelia` directly. The same applies to any "throws at runtime" vs "throws at compile time" distinction — this changes error classification.
+
+## `@inject` is not removed — "never" is almost always wrong
+
+A recurring mistake is stating that a v2 API is "gone" or "never use" when it is actually deprecated-but-functional.
+`@inject` is still valid in v2; `resolve()` is preferred but `@inject` is not a runtime error. Before writing
+a prohibition, confirm with DeepWiki. The correct severity levels are:
+
+- **REMOVED** — does not exist in v2 at all (e.g. `PLATFORM.moduleName`, `configureRouter`)
+- **DEPRECATED** — still works but a v2-native alternative exists and is preferred (e.g. `@inject`, `IEventAggregator` as default bus)
+- **ERROR CODE** — removed from the binding command set and throws at compile time (`.delegate` on custom events → AUR0713)
+
+The v1-removals table uses REMOVED / DEPRECATED correctly; skill body text must match.
+
+## `.style` binding: the narrow rule, not the blanket prohibition
+
+The inline `style="width: ${value}%"` bug is real (production optimizer drops placeholders for falsy values,
+producing `style="width:{};"`). However, it only triggers when the interpolated value is `0`/`false`/`''`.
+Writing "never inline `style=`" as a blanket rule is wrong — it is safe for guaranteed non-falsy values.
+The correct formulation is: **prefer `.style` binding when the value can be falsy**. See
+`aurelia-migration/reference/debugging.md` (prod-build 0-value style bug section) for the full technical
+explanation. The foundation, component-library, plugin, and migration pillars all now carry the correct
+narrow formulation; new skill content must follow it.
+
+## Disposal hooks: `dispose` is mandatory, not `unbinding`
+
+`IEventAggregator` subscriptions leak if not permanently disposed. The correct mandatory cleanup site is
+`dispose` (permanent teardown), not `unbinding` (which runs before potential reactivation). DeepWiki
+confirmed this. The foundation pillar's guardrail has been updated accordingly; always cite `dispose` as
+the cleanup hook when writing about `IEventAggregator` subscription management.
+
+## Every prohibition lives in exactly one canonical file
+
+The migration pillar's `reference/v1-removals.md` is the single source of truth for v1-prohibition claims.
+Skill bodies must not re-state prohibitions with different severity levels or error codes — if the table
+says DEPRECATED, the skill body cannot say REMOVED. When updating a prohibition in the table, audit all
+skill bodies and reference files for consistent re-statements (the DeepWiki sweep caught 25 inconsistencies
+in one pass). Add a re-statement audit to the pre-release checklist.
+</skill_content_rules>

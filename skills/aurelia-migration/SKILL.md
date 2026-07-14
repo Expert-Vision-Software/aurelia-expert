@@ -29,7 +29,7 @@ The three sub-areas the skill unlocks after the lift:
 
 A v1 → v2 lift is mechanical: eight APIs changed. Run the table in
 `reference/v1-removals.md` once per file. The most common lift mistake is `.delegate`
-on a custom event — it throws **AUR0009** at runtime, not at compile time. See that
+on a custom event — it throws **AUR0713** at compile time. See that
 file for the full table + one-line fix per row.
 
 ## v1 contamination guardrail
@@ -43,7 +43,7 @@ increments, not a destination.
 
 When migrating in a project whose instructions file declares these rules, they are authoritative and override any generic Aurelia advice elsewhere in the skill package:
 
-- **`.trigger` only for custom events**, never `.delegate` (throws AUR0009).
+- **`.trigger` only for custom events**, never `.delegate` (throws AUR0713 at compile time).
 - **kebab-case element names only** — every old PascalCase or camelCase element
   name from v1 is invalid in v2; rename at the lift step.
 - **`import type` / `export type` for interfaces** — split runtime (DI tokens,

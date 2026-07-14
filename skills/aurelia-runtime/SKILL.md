@@ -16,7 +16,7 @@ Resolve the wiring of an Aurelia v2 component: injection, routes, lifecycle, cro
 
 ## The resolve step
 
-Every wiring problem starts the same way: identify what to resolve first, then resolve this through `resolve(Token)`. The decorator `@inject` does not appear anywhere in v2.
+Every wiring problem starts the same way: identify what to resolve first, then resolve this through `resolve(Token)`. Prefer `resolve()` over the `@inject` decorator — `@inject` still works but `resolve()` is the modern v2 idiom.
 
 | Need | Resolve |
 |------|---------|
@@ -33,19 +33,19 @@ The resolve step in a class is `constructor(private readonly svc: IFoo = resolve
 
 These belong to Aurelia 1; they throw or silently break v2:
 
-- `@inject` decorator → use `resolve()`
+- `@inject` decorator → prefer `resolve()` (still valid but `resolve()` is idiomatic v2)
 - `configureRouter` → use `@route`
 - `PLATFORM.moduleName` → gone; use `@customElement` `dependencies` or `() => import(...)` in route `component`
 - `<router-view>` → use `<au-viewport>`
 - `<compose view-model>` → use `<au-compose>` with `component`
-- `.delegate` for custom events → throws **AUR0009**; use `.trigger`
+- `.delegate` for custom events → throws **AUR0713** at compile time; use `.trigger`
 - `activate` / `deactivate` hooks → use `canLoad` / `loading` / `canUnload` / `unloading`
 
 ## Non-negotiables
 
 Override any earlier reading.
 
-- **Custom events**: `.trigger` only (`.delegate` throws AUR0009).
+- **Custom events**: `.trigger` only (`.delegate` throws AUR0713 at compile time).
 - **Type imports**: `import type` / `export type` for interfaces — interfaces are erased at runtime.
 - **Singleton DI**: prefer singletons over `IEventAggregator` for cross-feature state.
 - **Service returns Model**: services expose Models, never DTOs; convert via `Model.fromDTO()` / `model.toDTO()`.

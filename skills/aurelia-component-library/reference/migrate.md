@@ -11,7 +11,7 @@ Scan the candidate files for v1-only patterns (the "lift table" from `aurelia-mi
 - `<router-view>` — replaced by `<au-viewport>`.
 - `<compose>` — replaced by `<au-compose>`.
 - `@inject(...)` decorator on constructors — replaced by `resolve()` defaults.
-- `.delegate` on a custom event (e.g. `save.delegate="..."` where `save` is custom) — throws AUR0009.
+- `.delegate` on a custom event (e.g. `save.delegate="..."` where `save` is custom) — throws AUR0713 at compile time.
 - `activate()` / `deactivate()` lifecycle methods — renamed to `canLoad` / `loading` / `canUnload` / `unloading`.
 
 If any of these appear, **stop this procedure**. Branch through `aurelia-migration` first (lead the prompt with `lift`), run the v1-removals table against every candidate file, and only return here when the source is v2-current. Tokenizing v1 code in place defeats the lift.

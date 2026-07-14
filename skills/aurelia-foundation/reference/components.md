@@ -129,13 +129,13 @@ Hard rules (see [SKILL.md](../SKILL.md) for the full guardrails):
 | `event.delegate="handler($event)"` | **Native DOM** events (e.g. `@click.delegate="..."`) — note `@` form is recommended |
 | `event.call="handler()"` | Invocation without event object |
 
-**Hard rule:** **`.trigger` is mandatory for custom events.** Using `.delegate` on a custom event throws `AUR0009`. Native DOM events keep `.delegate` or the modern `@click` short form.
+**Hard rule:** **`.trigger` is mandatory for custom events.** Using `.delegate` on a custom event throws `AUR0713` at compile time. Native DOM events keep `.delegate` or the modern `@click` short form.
 
 ```html
 <!-- ✅ Custom event: .trigger -->
 <my-card save.trigger="onSave($event)"></my-card>
 
-<!-- ❌ Custom event: .delegate throws AUR0009 -->
+<!-- ❌ Custom event: .delegate throws AUR0713 (compile-time error) -->
 <my-card save.delegate="onSave($event)"></my-card>
 
 <!-- ✅ Native event: @click -->

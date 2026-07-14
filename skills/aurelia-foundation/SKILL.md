@@ -37,11 +37,11 @@ If the request spans two pillars (e.g. "scaffold a custom element with lifecycle
 
 These are non-negotiable across all six pillars. Each is enforced by the runtime or build pipeline; ignoring any of them is a runtime error or a silent prod bug.
 
-- **`.trigger` for custom events.** `.delegate` on a custom event throws `AUR0009`. Use `.delegate` only on native DOM events.
+- **`.trigger` for custom events.** `.delegate` on a custom event throws `AUR0713` (template compilation error). Use `.delegate` only on native DOM events.
 - **Kebab-case element names.** Every custom element name must contain a hyphen (`user-profile`, not `userProfile`).
 - **`import type` / `export type` for interfaces.** Interfaces are type-only; runtime values use regular `import` / `export`. Project enforces via `verbatimModuleSyntax: true` in `tsconfig.json`.
-- **`.style` property binding for dynamic CSS.** Inline `style="width: ${value}%"` compiles to `style="width:{};"` when the value is `0`/`false`/`''` in production. Use `width.style="expr"` so the runtime JS expression always emits a value.
-- **Singleton DI services over Event Aggregator.** Prefer typed, constructor-injected services for cross-component state. `IEventAggregator` exists but is a last resort; the `unbinding` hook is the hard mandate disposal site if you do subscribe.
+- **`.style` property binding for dynamic CSS when the value can be falsy.** Inline `style="width: ${value}%"` is safe when the value is guaranteed non-falsy; it compiles to `style="width:{};"` only when the value is `0`/`false`/`''` in production builds. Prefer `width.style="expr"` in any component where the interpolated value may be falsy.
+- **Singleton DI services over Event Aggregator.** Prefer typed, constructor-injected services for cross-component state. `IEventAggregator` exists but is a last resort; the `dispose` hook is the mandatory permanent cleanup site if you subscribe — `detaching` is only for temporary teardown and `unbinding` runs before potential reactivation.
 - **Models, not DTOs, cross the service boundary.** Services return Model classes (camelCase, `*.model.ts`). DTOs (PascalCase, `*-dto.ts`) live in `src/models/` and convert via `Model.fromDTO()`. Components consume Models, never DTOs.
 
 Each guardrail is expanded in the reference file closest to it (template/binding → [components](reference/components.md); naming → [components](reference/components.md); state → [lifecycle](reference/lifecycle.md)).

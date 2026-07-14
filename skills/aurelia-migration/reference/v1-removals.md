@@ -13,8 +13,8 @@
 | `configureRouter(...)` callback | REMOVED | `@route` decorator co-located on the component |
 | `<router-view>` | RENAMED | `<au-viewport>` |
 | `<compose view-model="...">` | RENAMED | `<au-compose component="...">` (bindables renamed) |
-| `.delegate` on custom events | REMOVED → **AUR0009** | `.trigger` for custom events; `.delegate` only for native DOM |
-| `@inject` decorator | REMOVED | `resolve()` functional API |
+| `.delegate` on custom events | REMOVED → **AUR0713** (compile-time) | `.trigger` for custom events; `.delegate` only for native DOM |
+| `@inject` decorator | DEPRECATED — prefer `resolve()` | `resolve()` functional API |
 | `activate(params)` / `deactivate()` hooks | RENAMED | `canLoad` / `loading` / `canUnload` / `unloading` |
 | `EventAggregator` as default cross-component bus | DE-EMPHASIZED | Singleton DI service — see `aurelia-authoring` |
 
@@ -100,12 +100,12 @@ export class App {}
 
 ### `.delegate` → `.trigger` (most-common lift mistake)
 
-**`.delegate` on a custom (non-DOM) event throws AUR0009** at runtime. This is
+**`.delegate` on a custom (non-DOM) event throws AUR0713** at compile time. This is
 the single most-encountered migration failure because v1 used `.delegate` for
 everything.
 
 ```html
-<!-- v1 — FORBIDDEN; throws AUR0009 in v2 -->
+<!-- v1 — FORBIDDEN; throws AUR0713 in v2 (template compilation error) -->
 <nav nav-click.delegate="handleNav($event)"></nav>
 
 <!-- v2 — CORRECT -->
@@ -116,7 +116,7 @@ Rule: **`.delegate` handles native DOM events bubbling up** (e.g. `@click.delega
 on a `<button>`). **`.trigger` raises a custom-event handler** on the element that
 fired it. Custom-element authors `dispatchEvent(new CustomEvent('nav-click'))` →
 the listener must use `.trigger`. See [reference/debugging.md](debugging.md) for
-the full AUR0009 fix.
+the full AUR0713 fix.
 
 ### `@inject` → `resolve()`
 

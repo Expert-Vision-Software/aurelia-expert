@@ -41,24 +41,24 @@ If the request spans anatomy and distribution, start with [plugin-anatomy.md](re
 
 These are restated here for convenience. The canonical always-do list lives in `aurelia-foundation/SKILL.md`; the canonical v1-removal table lives in `aurelia-migration/reference/v1-removals.md`. **This pillar does not duplicate them** — when a guardrail and a project rule disagree, the project rule wins.
 
-- **`.trigger` for custom events.** `.delegate` on a custom event throws `AUR0009`. `.delegate` is for native DOM events only.
+- **`.trigger` for custom events.** `.delegate` on a custom event throws `AUR0713` at compile time. `.delegate` is for native DOM events only.
 - **Kebab-case element names.** Every custom element name must contain a hyphen.
 - **`import type` / `export type` for interfaces.** Type-only symbols travel through `import type`; runtime values use regular `import`.
-- **`.style` property binding for dynamic CSS.** Never inline `style="width: ${value}%"`.
+- **`.style` property binding when the interpolated value can be falsy.** Inline `style="width: ${value}%"` is safe for guaranteed non-falsy values; use `width.style="expr"` for values that may be `0`/`false`/`''` in production.
 - **Singleton DI services over Event Aggregator.** Typed constructor-injected services for cross-component state.
 - **Models, not DTOs, cross the service boundary.**
 
 ## V1 contamination
 
-The seven v1 APIs below are pinned prohibitions in every pillar. **Never package v1 code in place** — lift it first. The canonical table with v2 replacements lives in `aurelia-migration/reference/v1-removals.md`; this pillar defers to it.
+The six v1 APIs below are pinned prohibitions in every pillar. `@inject` is deprecated — prefer `resolve()` but it still works. **Never package v1 code in place** — lift first. The canonical table with v2 replacements lives in `aurelia-migration/reference/v1-removals.md`; this pillar defers to it.
 
-- `.delegate` on custom events → **AUR0009** → `.trigger`
-- `@inject(...)` decorator → `resolve()` functional API
+- `.delegate` on custom events → **AUR0713** (compile-time) → `.trigger`
 - `PLATFORM.moduleName('...')` → native bundler import
 - `configureRouter(...)` callback → `@route` decorator
 - `<router-view>` → `<au-viewport>`
 - `<compose view-model="...">` → `<au-compose component="...">`
 - `activate(params)` / `deactivate()` → `canLoad` / `loading` / `canUnload` / `unloading`
+- `@inject(...)` decorator → `resolve()` functional API (DEPRECATED — still valid, `resolve()` preferred)
 
 The extraction reference ([extract.md](reference/extract.md)) opens with a gate that scans for every pattern above; if any is found, it routes to `aurelia-migration` before any structural move.
 
