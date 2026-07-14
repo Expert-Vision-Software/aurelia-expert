@@ -5,19 +5,7 @@
   ],
   "skills": {
     "paths": [
-      "../.agents/skills",
-      "../skills"
+      "../.agents/skills"
     ]
-  },
-  "permission": {
-    "skill": {
-      "aurelia-expert": "allow",
-      "aurelia-foundation": "allow",
-      "aurelia-runtime": "allow",
-      "aurelia-largespa": "allow",
-      "aurelia-migration": "allow",
-      "aurelia-component-library": "allow",
-      "aurelia-plugin": "allow"
-    }
   }
 }
