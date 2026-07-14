@@ -1,6 +1,6 @@
 ---
 name: aurelia-foundation
-description: Scaffold an Aurelia v2 project from zero. Picks the right foundation step: philosophy, hello-world quickstart, component naming, lifecycle hooks, or AI-assisted scaffolding. Use when starting an Aurelia 2 app, asking "what is Aurelia", creating a custom element, wiring binding/attached/unbinding, or generating the first main.ts and pair.
+description: Scaffold an Aurelia v2 project from zero. Picks the right foundation step — philosophy, hello-world quickstart, component naming, lifecycle hooks, or AI-assisted scaffolding. Use when starting an Aurelia 2 app, asking "what is Aurelia", creating a custom element, wiring binding/attached/unbinding, or generating the first main.ts and pair.
 license: MIT
 compatibility: opencode, claude-code, and any skill-compatible agent
 metadata:
