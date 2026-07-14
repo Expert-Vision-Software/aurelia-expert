@@ -35,6 +35,7 @@ const SKILL_NAMES: readonly string[] = [
   "aurelia-largespa",
   "aurelia-migration",
   "aurelia-component-library",
+  "aurelia-plugin",
 ] as const;
 
 const PACKAGE_NAME: string = "aurelia-expert";

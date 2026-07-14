@@ -10,11 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - New bundled skill `aurelia-component-library` — leading word **assemble**, fifth pillar. Owns the styled, variable-driven component-library workflow on Aurelia v2 + Tailwind: design-token layer (CSS custom properties on the root element with the Tailwind `@theme` bridge), `shared/components/ui/` library layout with the `ui-` element prefix, component anatomy (`@bindable` variants/sizes, `<au-slot>` projection in Light DOM, `.style` property binding), a greenfield deploy procedure, and a migrate-existing procedure with a v1-source gate that defers to `aurelia-migration` (lift) before any structural move.
 - Router (`aurelia-expert`) gains a fifth branch ladder position: `assemble → aurelia-component-library` between `resolve` and `slice`. The skill table, branch table, pillar-location tree, and precedence note all updated; precedence clarifies that mixed library + v1 prompts go to `lift` first (the more constrained case wins), then `assemble` for the lifted v2 code.
+- New bundled skill `aurelia-plugin` — leading word **package**, seventh pillar. Owns the distributable-plugin workflow on Aurelia v2: the `register(container)` duck-typed entry point, the `.customize()` options pattern with `DI.createInterface` tokens, global resource registration with plugin-name prefixes, AppTask lifecycle hooks, rendering-pipeline extensions (`IRenderer`/`@renderer`, `IRendering`, `registerHostNode`), npm distribution (`peerDependencies` on `aurelia`, dual ESM/CJS + `.d.ts`, explicit `?raw` template imports, `types/assets.d.ts`), and an extract procedure (component-library / feature-slice / shared-dir → plugin) with a v1-source gate that defers to `aurelia-migration` (lift) before any packaging move.
+- Router (`aurelia-expert`) gains a sixth branch ladder position: `package → aurelia-plugin` after `lift`. Branch table, pillar-location tree, and precedence notes updated; three new precedence sub-rules disambiguate plugin vs component-library, largespa, and migration (v1 source → lift first).
 
 ### Changed
-- `src/installer.ts` `SKILL_NAMES` array and `tests/skills.test.ts` `SKILL_NAMES` + `REFERENCE_FILES` now include `aurelia-component-library`; the installer copies it on every install/uninstall cycle and the test suite asserts every reference file is non-empty.
-- `.opencode/opencode.json` permission allow-list extended to six skills.
-- All five-vs-four skill-count references updated across `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, `skills/aurelia-foundation/SKILL.md`, `skills/aurelia-expert/SKILL.md`, and `skills/aurelia-expert/REFERENCE.md`.
+- `src/installer.ts` `SKILL_NAMES` array and `tests/skills.test.ts` `SKILL_NAMES` + `REFERENCE_FILES` now include `aurelia-component-library`; the installer copies it on every install/uninstall cycle and the test suite asserts every reference file is non-empty; `aurelia-plugin` added likewise.
+- `.opencode/opencode.json` permission allow-list extended to seven skills.
+- All six-vs-five skill-count references updated across `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, `skills/aurelia-foundation/SKILL.md`, `skills/aurelia-expert/SKILL.md`, and `skills/aurelia-expert/REFERENCE.md`.
 
 ## [0.1.0] - 2026-07-13
 
