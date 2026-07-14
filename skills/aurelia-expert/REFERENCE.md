@@ -6,10 +6,11 @@
 |---|---|---|---|
 | scaffold | scaffold | `aurelia-foundation` | Starting a project, naming, components, AI scaffolding |
 | resolve | resolve | `aurelia-runtime` | DI, routing, AppTask, events, cross-feature state |
+| assemble | assemble | `aurelia-component-library` | Building or extracting a styled, variable-driven UI kit (CSS tokens, ui- elements, Tailwind bridge) |
 | slice | slice | `aurelia-largespa` | Feature-first layout, scaling, hierarchical Agents.md |
 | lift | lift | `aurelia-migration` | v1→v2 migration, debugging, performance |
 
-All four branches are peers — the ladder in `SKILL.md` applies in order only when a prompt matches none precisely.
+All five branches are peers — the ladder in `SKILL.md` applies in order only when a prompt matches none precisely.
 
 ## Pillar locations
 
@@ -17,11 +18,12 @@ All pillars live next to this router, one folder deep:
 
 ```
 skills/
-├── aurelia-expert/         ← this router
-├── aurelia-foundation/     ← scaffold
-├── aurelia-runtime/        ← resolve
-├── aurelia-largespa/       ← slice
-└── aurelia-migration/      ← lift
+├── aurelia-expert/             ← this router
+├── aurelia-foundation/         ← scaffold
+├── aurelia-runtime/            ← resolve
+├── aurelia-component-library/  ← assemble
+├── aurelia-largespa/           ← slice
+└── aurelia-migration/          ← lift
 ```
 
 ## Precedence — project instructions
