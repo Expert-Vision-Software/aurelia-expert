@@ -22,7 +22,7 @@ bun test
 
 Two suites cover the package:
 
-- `tests/skills.test.ts` — frontmatter validation per skill (name matches folder, description 1–1024 chars, MIT license, compatibility comma-list), `metadata.area` + `metadata.leading-word` present, `metadata.focal-point: true` on `aurelia-largespa`, `metadata.ground-truth: https://docs.aurelia.io` on `aurelia-expert`, every `reference/<file>.md` non-empty, `.opencode/opencode.json` registers skill paths + pre-allows all 6 skills, `package.json#bin["aurelia-expert"]` points at `src/cli.ts`, plugin-name normalization round-trip.
+- `tests/skills.test.ts` — frontmatter validation per skill (name matches folder, description 1–1024 chars, MIT license, compatibility comma-list), `metadata.area` + `metadata.leading-word` present, `metadata.focal-point: true` on `aurelia-largespa`, `metadata.ground-truth: https://docs.aurelia.io` on `aurelia-expert`, every `reference/<file>.md` non-empty, `.opencode/opencode.json` registers skill paths + pre-allows all 7 skills, `package.json#bin["aurelia-expert"]` points at `src/cli.ts`, plugin-name normalization round-trip.
 - `tests/installer.test.ts` — mocked temp project + global dirs; install copies every bundled skill and writes `.version` markers; permission.skill pre-granted; plugin[] contains `aurelia-expert`; idempotent re-install does not duplicate; legacy root `opencode.json` migrates into `.opencode/opencode.json`; uninstall removes skill dirs + plugin entry; status reports install state.
 
 ### Type-check
@@ -99,7 +99,7 @@ aurelia-expert/
 - **Local** (default): copies to `{project}/.opencode/skills/{aurelia-expert,aurelia-foundation,aurelia-runtime,aurelia-largespa,aurelia-migration}/` and updates `{project}/.opencode/opencode.json`.
 - **Global**: copies to `~/.config/opencode/skills/{aurelia-expert,...}/` and updates `~/.config/opencode/opencode.json`.
 
-It also pre-grants `permission.skill: "allow"` for all six skills and writes a `.version` marker under `skills/aurelia-expert/` to skip re-install on subsequent loads.
+It also pre-grants `permission.skill: "allow"` for all seven skills and writes a `.version` marker under `skills/aurelia-expert/` to skip re-install on subsequent loads.
 
 ### Plugin auto-install
 

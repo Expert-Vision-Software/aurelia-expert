@@ -9,8 +9,9 @@
 | assemble | assemble | `aurelia-component-library` | Building or extracting a styled, variable-driven UI kit (CSS tokens, ui- elements, Tailwind bridge) |
 | slice | slice | `aurelia-largespa` | Feature-first layout, scaling, hierarchical Agents.md |
 | lift | lift | `aurelia-migration` | v1→v2 migration, debugging, performance |
+| package | package | `aurelia-plugin` | Authoring/registering a distributable plugin, options via .customize(), npm packaging, extracting a library/slice/shared-dir into a plugin |
 
-All five branches are peers — the ladder in `SKILL.md` applies in order only when a prompt matches none precisely.
+All six branches are peers — the ladder in `SKILL.md` applies in order only when a prompt matches none precisely.
 
 ## Pillar locations
 
@@ -23,7 +24,8 @@ skills/
 ├── aurelia-runtime/            ← resolve
 ├── aurelia-component-library/  ← assemble
 ├── aurelia-largespa/           ← slice
-└── aurelia-migration/          ← lift
+├── aurelia-migration/          ← lift
+└── aurelia-plugin/             ← package
 ```
 
 ## Precedence — project instructions

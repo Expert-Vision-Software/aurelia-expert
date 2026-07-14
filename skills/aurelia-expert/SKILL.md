@@ -11,9 +11,9 @@ metadata:
 
 # Aurelia Expert — Router
 
-A thin router. It reads the prompt, classifies it as one of five branches, and hands off to the named pillar skill. It holds no Aurelia domain content itself.
+A thin router. It reads the prompt, classifies it as one of six branches, and hands off to the named pillar skill. It holds no Aurelia domain content itself.
 
-The five branches — scaffold, resolve, assemble, slice, lift — map one-to-one to the five pillar skills. The router's job is to pick the right one and stop.
+The six branches — scaffold, resolve, assemble, slice, lift, package — map one-to-one to the six pillar skills. The router's job is to pick the right one and stop.
 
 ## Branch detection ladder
 
@@ -24,6 +24,7 @@ Read the prompt. Match the first branch whose trigger is present. Use the order 
 3. **assemble → `aurelia-component-library`.** Triggers: "component library", "design system", "UI kit", "extract components into a library", "CSS variables for components", "tokens", "Tailwind component library", "shared button kit".
 4. **slice → `aurelia-largespa`.** Triggers: "structure a large Aurelia app", "feature-first layout", "organize folders", "split into features", "share code across features", "configure Agents.md", "scale an Aurelia SPA".
 5. **lift → `aurelia-migration`.** Triggers: "migrate from Aurelia 1", "lift v1 code", "what changed in v2", "debug this Aurelia error", "optimize performance", "find the canonical doc".
+6. **package → `aurelia-plugin`.** Triggers: "create an Aurelia plugin", "ship a plugin to npm", "package.json for an Aurelia plugin", "register(container) plugin", ".customize() plugin options", "turn my component library / feature slice / shared dir into a plugin", "IRenderer / IRendering plugin", "registerHostNode", "peerDependencies aurelia".
 
 ## Handoff
 
@@ -35,6 +36,7 @@ skill({ name: "aurelia-runtime" })          // resolve
 skill({ name: "aurelia-component-library" }) // assemble
 skill({ name: "aurelia-largespa" })          // slice
 skill({ name: "aurelia-migration" })         // lift
+skill({ name: "aurelia-plugin" })            // package
 ```
 
 Hand off the user's prompt unchanged. Leave the pillar's domain to the pillar. Pick one branch; answer from that pillar alone.
@@ -42,6 +44,12 @@ Hand off the user's prompt unchanged. Leave the pillar's domain to the pillar. P
 When two branches both fit (e.g. "migrate this large Aurelia app"), branch to the more specific one first: `aurelia-migration` owns the structural lift, and `aurelia-largespa` answers the post-migration organisation questions that surface once the lift lands. Default to migration; defer to largespa only when the prompt is purely about layout, not the lift itself.
 
 Library-building is a third axis of overlap. When the prompt mixes library construction with v1→v2 migration ("move my v1 buttons into a v2 component library"), the more constrained case wins: branch to `aurelia-migration` first so v1 syntax becomes v2-current, then load `aurelia-component-library` to assemble the lifted v2 code into the kit. The component-library pillar's migrate procedure runs the v1-syntax gate before any structural move; honour that gate by lifting first.
+
+Plugin-packaging is a fourth axis of overlap, with three sub-rules:
+
+- **`aurelia-component-library` vs `aurelia-plugin`:** "assemble" builds the styled kit inside one app; "package" ships resources for cross-app npm distribution. "Build a button kit" → assemble. "Ship my kit as an npm plugin" → package. "Build and ship from scratch" → assemble first, then package. If source is v1 → lift first (migration).
+- **`aurelia-largespa` vs `aurelia-plugin`:** largespa owns in-app feature-first layout + the `shared/` admission rule; plugin owns the npm distribution boundary. "Organize my shared folder" → slice. "Publish my shared folder as a plugin" → package.
+- **`aurelia-migration` vs `aurelia-plugin`:** v1 source being packaged → lift first (`aurelia-migration`), then package v2-current code. The plugin pillar's `extract.md` Gate enforces this.
 
 ## Precedence
 

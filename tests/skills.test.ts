@@ -15,6 +15,7 @@ const SKILL_NAMES: readonly string[] = [
   "aurelia-largespa",
   "aurelia-migration",
   "aurelia-component-library",
+  "aurelia-plugin",
 ] as const;
 const DESCRIPTION_MAX: number = 1024;
 const FRONTMATTER_PATTERN: RegExp = /^---\n([\s\S]*?)\n---/;
@@ -147,6 +148,13 @@ describe("reference files", () => {
       "greenfield.md",
       "migrate.md",
     ],
+    "aurelia-plugin": [
+      "plugin-anatomy.md",
+      "configuration.md",
+      "resources.md",
+      "distribution.md",
+      "extract.md",
+    ],
   };
 
   for (const [skill, files] of Object.entries(REFERENCE_FILES)) {
@@ -176,7 +184,7 @@ describe("package self-config", () => {
     expect(skills.paths.length).toBeGreaterThan(0);
   });
 
-  test(".opencode/opencode.json pre-allows all 6 skills", async () => {
+  test(".opencode/opencode.json pre-allows all 7 skills", async () => {
     const path: string = join(PACKAGE_ROOT, ".opencode", "opencode.json");
     const content: string = await readFile(path, "utf-8");
     const config = JSON.parse(content) as Record<string, unknown>;

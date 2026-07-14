@@ -1,18 +1,18 @@
 # AGENTS.md - aurelia-expert
 
 <critical_rules priority="highest">
-1. The six bundled skills describe **Aurelia v2 only**. The seven v1 APIs — `.delegate` (on custom events), `<router-view>`, `PLATFORM.moduleName`, `configureRouter`, `<compose>`, `@inject`, `activate/deactivate` — are pinned as prohibitions in every pillar. Never soften a prohibition in `skills/*/SKILL.md` or `reference/*.md`.
+1. The seven bundled skills describe **Aurelia v2 only**. The seven v1 APIs — `.delegate` (on custom events), `<router-view>`, `PLATFORM.moduleName`, `configureRouter`, `<compose>`, `@inject`, `activate/deactivate` — are pinned as prohibitions in every pillar. Never soften a prohibition in `skills/*/SKILL.md` or `reference/*.md`.
 2. `au-northwind` is **STRUCTURAL ONLY**. Reference it for folder layout, slice boundaries, and hierarchical `Agents.md` patterns — never as an Aurelia v2 API source. The `aurelia-largespa/reference/au-northwind-pointer.md` is the single source of truth for this guardrail; do not duplicate it elsewhere.
-3. The router (`aurelia-expert`) is the **single entry point**. It hands off to a pillar and stops. The five pillars are peer-skills, not nested; never re-route from one pillar to another. If two branches both fit, defer to the more specific one (`aurelia-migration` > `aurelia-largespa` for migration-of-large-SPA prompts; `aurelia-migration` > `aurelia-component-library` for migration-with-library prompts; see `aurelia-expert/SKILL.md` Precedence section).
+3. The router (`aurelia-expert`) is the **single entry point**. It hands off to a pillar and stops. The six pillars are peer-skills, not nested; never re-route from one pillar to another. If two branches both fit, defer to the more specific one (`aurelia-migration` > `aurelia-largespa` for migration-of-large-SPA prompts; `aurelia-migration` > `aurelia-component-library` for migration-with-library prompts; `aurelia-migration` > `aurelia-plugin` for packaging-v1-source prompts; see `aurelia-expert/SKILL.md` Precedence section).
 4. The active project's local Aurelia instructions file (`AGENTS.md`, `CLAUDE.md`, or repo conventions) **overrides** anything in this package. The pillars' guardrails (`.trigger`, kebab-case, `import type`, `.style` property binding, singleton DI over EventAggregator, Models not DTOs) are defaults; project rules win.
-5. The `description` field on every skill's frontmatter must remain ≤1024 characters, in third person, and front-load the leading word (`branch`, `scaffold`, `resolve`, `slice`, `lift`). Tests in `tests/skills.test.ts` enforce this — do not weaken the assertions.
+5. The `description` field on every skill's frontmatter must remain ≤1024 characters, in third person, and front-load the leading word (`branch`, `scaffold`, `resolve`, `assemble`, `slice`, `lift`, `package`). Tests in `tests/skills.test.ts` enforce this — do not weaken the assertions.
 </critical_rules>
 
 <context_hierarchy>
 <system>OpenCode plugin loader + npm distribution</system>
 <domain>Aurelia v2 MVVM SPA expertise, packaged for AI coding agents</domain>
-<task>Bundle six router-routed markdown skills into a publishable OpenCode plugin + npm package</task>
-<execution>npm install `aurelia-expert` → OpenCode loads `plugin.ts#config()` → idempotent install of six skills into `.opencode/skills/`</execution>
+<task>Bundle seven router-routed markdown skills into a publishable OpenCode plugin + npm package</task>
+<execution>npm install `aurelia-expert` → OpenCode loads `plugin.ts#config()` → idempotent install of seven skills into `.opencode/skills/`</execution>
 </context_hierarchy>
 
 <role>
@@ -32,11 +32,12 @@
 <skill name="aurelia-largespa" path="skills/aurelia-largespa/SKILL.md" leading-word="slice" role="pillar-focal" requires="aurelia-expert (router)" references="feature-first, directory-layout, feature-module, hierarchical-agents-md, orchestrator, model-dto, au-northwind-pointer" focal-point="true" />
 <skill name="aurelia-migration" path="skills/aurelia-migration/SKILL.md" leading-word="lift" role="pillar" requires="aurelia-expert (router)" references="v1-removals, debugging, performance, deepwiki-protocol" />
 <skill name="aurelia-component-library" path="skills/aurelia-component-library/SKILL.md" leading-word="assemble" role="pillar" requires="aurelia-expert (router)" references="tokens, library-layout, component-anatomy, greenfield, migrate" />
+<skill name="aurelia-plugin" path="skills/aurelia-plugin/SKILL.md" leading-word="package" role="pillar" requires="aurelia-expert (router)" references="plugin-anatomy, configuration, resources, distribution, extract" />
 </bundled_skills>
 
 <self_config>
 <location>.opencode/opencode.json</location>
-<purpose>Register `../skills` as a skill path and pre-allow all six skills for the package's own dev workflow</purpose>
+<purpose>Register `../skills` as a skill path and pre-allow all seven skills for the package's own dev workflow</purpose>
 <pointer_in_package_json>index.ts → plugin.ts (verbatim one-line re-export)</pointer_in_package_json>
 <opencode_plugin_entry>"aurelia-expert"</opencode_plugin_entry>
 </self_config>
