@@ -114,26 +114,40 @@ container.register(TranslateRenderer);
 
 Now any rendering instruction of type `TranslateInstruction` that enters the pipeline is handled by `TranslateRenderer.render(...)` instead of the default renderer.
 
-## Rendering-pipeline escape hatch 2 — `IRendering.getViewFactory`
+## Rendering-pipeline escape hatch 2 — `IRendering` (`getViewFactory`, `createNodes`)
 
-`IRendering` is the internal service that compiles templates into view factories. A plugin can resolve `IRendering` and call `getViewFactory(template, dependencies)` to compile a template string on the fly — useful for plugins that generate dynamic templates (a form-builder, a table generator, a markdown renderer).
+`IRendering` is the service that compiles template definitions into view factories and node sequences. A plugin resolves it to build dynamic views on the fly (a form-builder, a table generator, a markdown renderer) or to produce detached node sequences for headless rendering, SSR, or projection into a foreign framework's host.
 
 ```ts
 import { resolve } from 'aurelia';
-import type { IRendering, IViewFactory } from '@aurelia/runtime-html';
+import type {
+  CustomElementDefinition,
+  FragmentNodeSequence,
+  IContainer,
+  IRendering,
+  IViewFactory,
+} from '@aurelia/runtime-html';
 
 export class DynamicFormService {
   private readonly rendering: IRendering = resolve(IRendering);
+  private readonly container: IContainer = resolve(IContainer);
 
   public buildFactory(template: string): IViewFactory {
     return this.rendering.getViewFactory(
       { template, dependencies: [MpInput, MpSelect] },
+      this.container,
     );
+  }
+
+  public buildNodes(definition: CustomElementDefinition): FragmentNodeSequence {
+    return this.rendering.createNodes(definition);
   }
 }
 ```
 
-The returned `IViewFactory` creates view instances that Aurelia manages like any compiled view — they participate in the lifecycle, DI, and binding system.
+`getViewFactory(definition, container)` compiles a `PartialCustomElementDefinition` **and** binds it to a container — the container scopes the resource lookups and DI for the generated view. The returned `IViewFactory` creates view instances that Aurelia manages like any compiled view: they participate in the lifecycle, DI, and binding system.
+
+`createNodes(definition)` returns a `FragmentNodeSequence` (an `INodeSequence`) detached from any controller. Use it when you need a compiled fragment without a host — to hand to `registerHostNode`, an SSR pipeline, or a foreign-framework adopter. The caller owns attaching and tearing it down.
 
 ## Rendering-pipeline escape hatch 3 — `registerHostNode`
 

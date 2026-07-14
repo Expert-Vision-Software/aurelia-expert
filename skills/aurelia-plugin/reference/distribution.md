@@ -81,7 +81,7 @@ The `?raw` suffix tells Vite (and compatible bundlers) to import the file's cont
 
 Key fields:
 
-- **`peerDependencies.aurelia`** — never `dependencies.aurelia`. The consumer's app provides the framework; the plugin consumes it. Bundling Aurelia as a runtime dependency ships a second copy of the DI container and template compiler.
+- **`peerDependencies.aurelia`** — never `dependencies.aurelia`. The consumer's app provides the framework; the plugin consumes it. Bundling Aurelia as a runtime dependency ships a second copy of the DI container and template compiler, which concretely breaks in three ways: the app's `IRenderer` and resource registrations live in one container and the plugin's copy never sees them; rendering instructions cross the boundary against a compiler that did not compile them; and TypeScript treats the two framework copies as nominally-distinct types, so a value typed as the plugin's `IContainer` is not assignable to the app's `IContainer`.
 - **`exports` condition map** — resolves `.` (the package root) to ESM for `import`, CJS for `require`, and `.d.ts` for `types`. Consumers on ESM get tree-shakeable ESM; consumers on CJS get interop.
 - **`files: ["dist"]`** — ships only build output. Source maps and `.ts` files stay out of the tarball.
 - **`sideEffects: false`** — tells the consumer's bundler that importing from the package is tree-shakeable. Set to `true` only if the plugin has global side effects on import (rare; prefer explicit registration).
