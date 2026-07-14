@@ -35,7 +35,7 @@ If the request spans two pillars (e.g. "scaffold a custom element with lifecycle
 
 ## Hard guardrails (apply to every branch)
 
-These are non-negotiable across all four pillars. Each is enforced by the runtime or build pipeline; ignoring any of them is a runtime error or a silent prod bug.
+These are non-negotiable across all five pillars. Each is enforced by the runtime or build pipeline; ignoring any of them is a runtime error or a silent prod bug.
 
 - **`.trigger` for custom events.** `.delegate` on a custom event throws `AUR0009`. Use `.delegate` only on native DOM events.
 - **Kebab-case element names.** Every custom element name must contain a hyphen (`user-profile`, not `userProfile`).

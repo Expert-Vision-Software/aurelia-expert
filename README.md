@@ -23,7 +23,7 @@
 
 ---
 
-Bring senior-grade **Aurelia v2** expertise into every AI agent session. This package bundles **five router-routed skills** — one thin router (`aurelia-expert`) and four pillar skills (`aurelia-foundation`, `aurelia-runtime`, `aurelia-largespa`, `aurelia-migration`) — so any compatible agent picks the right pillar on its own and never confuses Aurelia 1 with Aurelia 2.
+Bring senior-grade **Aurelia v2** expertise into every AI agent session. This package bundles **six router-routed skills** — one thin router (`aurelia-expert`) and five pillar skills (`aurelia-foundation`, `aurelia-runtime`, `aurelia-component-library`, `aurelia-largespa`, `aurelia-migration`) — so any compatible agent picks the right pillar on its own and never confuses Aurelia 1 with Aurelia 2.
 
 Works with [OpenCode](https://opencode.ai), Claude Code, and any agent that supports the `skill` tool or can invoke CLI-installed skills via `bunx` / `npx`.
 
@@ -48,7 +48,7 @@ That's it — skills are available immediately. The CLI defaults to **local scop
 
 | Skill | Leading word | What it does |
 |-------|-------------|--------------|
-| **`aurelia-expert`** | `branch` | Router-only. Reads the prompt, classifies it as one of four branches, hands off to the named pillar. |
+| **`aurelia-expert`** | `branch` | Router-only. Reads the prompt, classifies it as one of five branches, hands off to the named pillar. |
 | **`aurelia-foundation`** | `scaffold` | First-decision reference: philosophy, hello-world quickstart, custom-element naming, lifecycle hooks, AI-assisted scaffolding. |
 | **`aurelia-runtime`** | `resolve` | Component wiring: `resolve()` DI, `@route`, `<au-viewport>`, AppTasks, custom events, cross-feature orchestration. |
 | **`aurelia-largespa`** | `slice` | Enterprise SPA structure: `pages/`, `features/`, `shared/`, hierarchical `Agents.md`, thin-page orchestrators, Model/DTO boundary. **Focal point.** |
@@ -134,7 +134,7 @@ Run this table once per file (reference/v1-removals.md):
 |-----------|-------|
 | **[Bun](https://bun.sh) ≥ 1.0** | Required for the CLI installer, test suite, and OpenCode plugin runtime. |
 | **Aurelia 2.x project** | Optional. Skills fire on any prompt that mentions Aurelia — no project scaffold needed to *browse* them. |
-| **OpenCode, Claude Code, or any skill-compatible agent** | The five skills surface in the agent's `<available_skills>` list once installed. |
+| **OpenCode, Claude Code, or any skill-compatible agent** | The six skills surface in the agent's `<available_skills>` list once installed. |
 
 ## Installation
 
@@ -176,7 +176,7 @@ Add `aurelia-expert` to your `opencode.json` `plugin` array:
 }
 ```
 
-OpenCode installs the package on next session start, then `plugin.ts#config()` auto-copies the five skills into `.opencode/skills/` (idempotent — checks `.version` marker).
+OpenCode installs the package on next session start, then `plugin.ts#config()` auto-copies the six skills into `.opencode/skills/` (idempotent — checks `.version` marker).
 
 For local development against a checkout of this repo, reference the directory directly:
 

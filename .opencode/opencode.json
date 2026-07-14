@@ -16,7 +16,8 @@
       "aurelia-foundation": "allow",
       "aurelia-runtime": "allow",
       "aurelia-largespa": "allow",
-      "aurelia-migration": "allow"
+      "aurelia-migration": "allow",
+      "aurelia-component-library": "allow"
     }
   }
 }
