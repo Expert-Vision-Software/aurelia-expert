@@ -8,7 +8,7 @@ the high-frequency ones plus the production-only traps that hide in dev.
 
 | Code | Trigger | Fix |
 | :--- | :--- | :--- |
-| **AUR0009** | `.delegate` on a custom (non-DOM) event | Use `.trigger` for custom events; keep `.delegate` for native bubbling |
+| **AUR0713** | `.delegate` on a custom (non-DOM) event | Use `.trigger` for custom events; keep `.delegate` for native bubbling |
 | **AUR0010** | `resolve()` of an unregistered token | Register in the root container or the nearest feature module |
 | **AUR0019** | Binding target missing or miss-spelled (`value.bin`) | Fix the command; valid are `.bind` `.to-view` `.from-view` `.one-time` `.trigger` `.delegate` `.call` |
 | **AUR0022** | `@bindable` property referenced in template before declared | Declare `@bindable` above the constructor, or rename the template ref |
@@ -16,10 +16,10 @@ the high-frequency ones plus the production-only traps that hide in dev.
 | **AUR0901** | `containerless: true` and Shadow DOM used together | Pick one — `containerless` and Shadow DOM are mutually exclusive |
 | **AUR0907** | Custom element name has no hyphen | Rename to kebab-case (`user-profile`, not `userProfile`) |
 
-## AUR0009 — `.delegate` on a custom event (most common)
+## AUR0713 — `.delegate` on a custom event (most common)
 
 ```html
-<!-- throws AUR0009 -->
+<!-- throws AUR0713 (template compilation error) -->
 <nav nav-click.delegate="handleNav($event)"></nav>
 ```
 
@@ -151,7 +151,7 @@ them. Skipping this is the primary memory-leak cause.
 | When you want to… | Reach for |
 | :--- | :--- |
 | Apply dynamic CSS values | `.style` property binding, not inline interpolation |
-| Find why `.delegate` throws | [AUR0009 above](#aur0009--delegate-on-a-custom-event-most-common) |
+| Find why `.delegate` throws | [AUR0713 above](#aur0713--delegate-on-a-custom-event-most-common) |
 | Use `<slot>` in a custom element | Enable Shadow DOM **or** switch to `<au-slot>` |
 | Split merged v1 interface + token exports | `import type` / `export type` + tsconfig flags |
 | Replace EventAggregator with typed DI | Singleton service with `onX(handler) → unsubscribe` |

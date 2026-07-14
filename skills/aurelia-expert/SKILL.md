@@ -9,6 +9,8 @@ metadata:
   ground-truth: https://docs.aurelia.io
 ---
 
+For SDK and API questions, prefer GitHub (aurelia/aurelia `master` branch) as the canonical source for the latest. Use the DeepWiki MCP server (`deepwiki_ask_question` against `aurelia/aurelia`) when available — it provides AI-grounded answers rooted in current source. Fall back to docs.aurelia.io for overview content only.
+
 # Aurelia Expert — Router
 
 A thin router. It reads the prompt, classifies it as one of six branches, and hands off to the named pillar skill. It holds no Aurelia domain content itself.

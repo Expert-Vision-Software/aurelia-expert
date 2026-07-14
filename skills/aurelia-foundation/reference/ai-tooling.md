@@ -89,7 +89,7 @@ The reconciliation step is what makes the scaffold stable: a single research pas
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `AUR0009` on a custom event | Agent used `.delegate` on a custom event | Re-prompt with the **Hard guardrails** clause from [SKILL.md](../SKILL.md) verbatim |
+| `AUR0713` on a custom event | Agent used `.delegate` on a custom event | Re-prompt with the **Hard guardrails** clause from [SKILL.md](../SKILL.md) verbatim |
 | `style="width:{};"` in prod bundle | Agent used inline interpolation | Re-prompt with the `.style` property binding rule verbatim |
 | Module not found, runtime error on first import | Agent used a runtime `import` for an interface | Re-prompt: split into `import type` and regular `import` per `verbatimModuleSyntax: true` |
 | `PLATFORM is not defined` | Agent imported v1 module | Forbid v1; cite the v2 equivalent each time |

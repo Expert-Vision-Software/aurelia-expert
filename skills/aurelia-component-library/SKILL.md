@@ -42,7 +42,7 @@ These compound the foundation guardrails with the library's own. Ignoring any is
 - **Library under `shared/components/ui/`.** The `ui-` kebab prefix is mandatory for every library element (`ui-button`, `ui-card`); the class is `Ui*` PascalCase. Register every `Ui*` globally via `Shared.register(container)`. The `shared/` admission rule itself is owned by `aurelia-largespa` — this skill narrows it to the `ui/` layer.
 - **Light DOM + `<au-slot>`.** Bare `<slot>` requires `shadowOptions`; default to Light DOM so global tokens cascade and Tailwind applies without extra config. Reserve Shadow DOM for components that must style-isolate.
 - **Variants/sizes via `@bindable`, class list in the view-model.** Never interpolate `class="ui-button--${variant}"` alongside `class.bind`; compute the full class string in a getter so it is token-driven and debuggable.
-- **`.style` property binding for dynamic CSS.** Inline `style="width: ${value}%"` compiles to `style="width:{};"` for `0`/`false`/`''` in production. Use `width.style="expr"`.
+- **`.style` property binding when the interpolated value can be falsy.** Inline `style="width: ${value}%"` is safe for guaranteed non-falsy values; the optimizer bug only triggers when the value is `0`/`false`/`''` in production. Use `width.style="expr"` for any value that may be falsy.
 - **`import type` for variant unions.** `export type ButtonVariant = ...` is type-only; the `Ui*` class is the runtime import.
 
 ## What this skill defers

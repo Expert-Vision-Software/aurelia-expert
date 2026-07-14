@@ -12,7 +12,7 @@ The contract every library element honours: view-model + template pair, kebab ta
 6. **`<au-slot>` for projection**, not bare `<slot>`. `<slot>` requires `shadowOptions: { mode: 'open' }` (see `aurelia-migration/reference/debugging.md`, AUR0717). Light DOM is the default — only opt into Shadow DOM when style isolation is a hard requirement.
 7. **`.to-view` for read-only bindables** (label, disabled, current) — skips DOM observation for high-frequency or `false`/`0`/`''` values. Use default `.bind` only for forms (text inputs, textareas, selects).
 8. **`.style` property binding for dynamic CSS**, never inline `style="width: ${pct}%"`. Inline interpolation compiles to `style="width:{};"` for `0`/`false`/`''` in production (a dev-build-hidden bug).
-9. **`.trigger` for custom events**, never `.delegate` — `.delegate` on a custom event throws AUR0009.
+9. **`.trigger` for custom events**, never `.delegate` — `.delegate` on a custom event throws AUR0713 at compile time.
 
 ## The `ui-button` sample — view-model
 

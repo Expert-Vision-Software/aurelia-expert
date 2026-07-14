@@ -61,13 +61,13 @@ Use these instead of `setTimeout` / `Promise.resolve().then()` when you need the
 
 ## Custom events: `.trigger`, not `.delegate`
 
-Custom events fire with `.trigger`. `.delegate` for custom events throws **AUR0009**.
+Custom events fire with `.trigger`. `.delegate` for custom events throws **AUR0713** at compile time.
 
 ```html
 <!-- ✅ Custom event — .trigger -->
 <nav nav-click.trigger="handleNav($event)"></nav>
 
-<!-- ❌ AUR0009 — .delegate on custom event -->
+<!-- ❌ AUR0713 — .delegate on custom event (compile-time error) -->
 <nav nav-click.delegate="handleNav($event)"></nav>
 ```
 
@@ -116,7 +116,7 @@ Use `IEventAggregator` only when many unrelated subscribers truly need the same 
 
 ## V1 contamination
 
-- `.delegate` for custom events → throws AUR0009; use `.trigger`.
+- `.delegate` for custom events → throws AUR0713 at compile time; use `.trigger`.
 
 ## Ground truth
 

@@ -41,10 +41,10 @@ If the request spans anatomy and distribution, start with [plugin-anatomy.md](re
 
 These are restated here for convenience. The canonical always-do list lives in `aurelia-foundation/SKILL.md`; the canonical v1-removal table lives in `aurelia-migration/reference/v1-removals.md`. **This pillar does not duplicate them** — when a guardrail and a project rule disagree, the project rule wins.
 
-- **`.trigger` for custom events.** `.delegate` on a custom event throws `AUR0009`. `.delegate` is for native DOM events only.
+- **`.trigger` for custom events.** `.delegate` on a custom event throws `AUR0713` at compile time. `.delegate` is for native DOM events only.
 - **Kebab-case element names.** Every custom element name must contain a hyphen.
 - **`import type` / `export type` for interfaces.** Type-only symbols travel through `import type`; runtime values use regular `import`.
-- **`.style` property binding for dynamic CSS.** Never inline `style="width: ${value}%"`.
+- **`.style` property binding when the interpolated value can be falsy.** Inline `style="width: ${value}%"` is safe for guaranteed non-falsy values; use `width.style="expr"` for values that may be `0`/`false`/`''` in production.
 - **Singleton DI services over Event Aggregator.** Typed constructor-injected services for cross-component state.
 - **Models, not DTOs, cross the service boundary.**
 
@@ -52,7 +52,7 @@ These are restated here for convenience. The canonical always-do list lives in `
 
 The seven v1 APIs below are pinned prohibitions in every pillar. **Never package v1 code in place** — lift it first. The canonical table with v2 replacements lives in `aurelia-migration/reference/v1-removals.md`; this pillar defers to it.
 
-- `.delegate` on custom events → **AUR0009** → `.trigger`
+- `.delegate` on custom events → **AUR0713** (compile-time) → `.trigger`
 - `@inject(...)` decorator → `resolve()` functional API
 - `PLATFORM.moduleName('...')` → native bundler import
 - `configureRouter(...)` callback → `@route` decorator
