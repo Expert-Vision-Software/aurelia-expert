@@ -10,8 +10,9 @@
 | slice | slice | `aurelia-largespa` | Feature-first layout, scaling, hierarchical Agents.md |
 | lift | lift | `aurelia-migration` | v1→v2 migration, debugging, performance |
 | package | package | `aurelia-plugin` | Authoring/registering a distributable plugin, options via .customize(), npm packaging, extracting a library/slice/shared-dir into a plugin |
+| wire | wire | `aurelia-ecosystem` | First-party plugins (fetch-client, validation, dialog, state, i18n), forms, testing, SSR/prerendering |
 
-All six branches are peers — the ladder in `SKILL.md` applies in order only when a prompt matches none precisely.
+All seven branches are peers — the ladder in `SKILL.md` applies in order only when a prompt matches none precisely.
 
 ## Pillar locations
 
@@ -25,7 +26,8 @@ skills/
 ├── aurelia-component-library/  ← assemble
 ├── aurelia-largespa/           ← slice
 ├── aurelia-migration/          ← lift
-└── aurelia-plugin/             ← package
+├── aurelia-plugin/             ← package
+└── aurelia-ecosystem/         ← wire
 ```
 
 ## Precedence — project instructions

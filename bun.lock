@@ -11,6 +11,7 @@
         "@types/bun": "latest",
         "@types/node": "latest",
         "typescript": "^5.7.0",
+        "yaml": "^2.8.3",
       },
     },
   },

@@ -1,6 +1,6 @@
 ---
 name: aurelia-expert
-description: Use ONLY when working in an Aurelia v2 project — branch picks the right pillar skill for scaffold, resolve, slice, lift, or assemble questions on Aurelia 2.x MVVM SPAs. Use when starting an Aurelia app, choosing between Aurelia skills, structuring a large SPA, dependency injection, routing, migration from v1, debugging, performance, building a component library, or AI-assisted Aurelia scaffolding. Front-loads the leading word "branch".
+description: Use ONLY when working in an Aurelia v2 project — branch picks the right pillar skill for scaffold, resolve, assemble, slice, lift, package, or wire questions on Aurelia 2.x MVVM SPAs. Use when starting an Aurelia app, choosing between Aurelia skills, structuring a large SPA, dependency injection, routing, migration from v1, debugging, performance, building a component library, packaging a plugin, wiring first-party plugins (fetch-client, validation, dialog, state, i18n), forms, testing, SSR/prerendering, or AI-assisted Aurelia scaffolding. Front-loads the leading word "branch".
 license: MIT
 compatibility: opencode, claude-code, and any skill-compatible agent
 metadata:
@@ -13,9 +13,9 @@ For SDK and API questions, prefer GitHub (aurelia/aurelia `master` branch) as th
 
 # Aurelia Expert — Router
 
-A thin router. It reads the prompt, classifies it as one of six branches, and hands off to the named pillar skill. It holds no Aurelia domain content itself.
+A thin router. It reads the prompt, classifies it as one of seven branches, and hands off to the named pillar skill. It holds no Aurelia domain content itself.
 
-The six branches — scaffold, resolve, assemble, slice, lift, package — map one-to-one to the six pillar skills. The router's job is to pick the right one and stop.
+The seven branches — scaffold, resolve, assemble, slice, lift, package, wire — map one-to-one to the seven pillar skills. The router's job is to pick the right one and stop.
 
 ## Branch detection ladder
 
@@ -28,6 +28,8 @@ Read the prompt. Match the first branch whose trigger is present. Use the order 
 5. **lift → `aurelia-migration`.** Triggers: "migrate from Aurelia 1", "lift v1 code", "what changed in v2", "debug this Aurelia error", "optimize performance", "find the canonical doc".
 6. **package → `aurelia-plugin`.** Triggers: "create an Aurelia plugin", "ship a plugin to npm", "package.json for an Aurelia plugin", "register(container) plugin", ".customize() plugin options", "turn my component library / feature slice / shared dir into a plugin", "IRenderer / IRendering plugin", "registerHostNode", "peerDependencies aurelia".
 
+7. **wire → `aurelia-ecosystem`.** Triggers: "fetch-client", "HTTP client", "IHttpClient", "validation", "& validate", "dialog", "modal", "IDialogService", "state store", "@aurelia/state", "i18n", "translate", "locale", "form binding", "checkbox", "radio", "select", "model.bind", "matcher.bind", "submit.trigger", "test", "Vitest", "createFixture", "@aurelia/testing", "SSR", "prerender", "hydrate", "SEO render", "sitemap", "robots", "client takeover".
+
 ## Handoff
 
 Once classified, branch to the named pillar via the `skill` tool. Pass the user's prompt through unchanged.
@@ -39,6 +41,7 @@ skill({ name: "aurelia-component-library" }) // assemble
 skill({ name: "aurelia-largespa" })          // slice
 skill({ name: "aurelia-migration" })         // lift
 skill({ name: "aurelia-plugin" })            // package
+skill({ name: "aurelia-ecosystem" })        // wire
 ```
 
 Hand off the user's prompt unchanged. Leave the pillar's domain to the pillar. Pick one branch; answer from that pillar alone.

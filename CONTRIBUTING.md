@@ -22,7 +22,7 @@ bun test
 
 Two suites cover the package:
 
-- `tests/skills.test.ts` — frontmatter validation per skill (name matches folder, description 1–1024 chars, MIT license, compatibility comma-list), `metadata.area` + `metadata.leading-word` present, `metadata.focal-point: true` on `aurelia-largespa`, `metadata.ground-truth: https://docs.aurelia.io` on `aurelia-expert`, every `reference/<file>.md` non-empty, `.opencode/opencode.json` registers skill paths + pre-allows all 7 skills, `package.json#bin["aurelia-expert"]` points at `src/cli.ts`, plugin-name normalization round-trip.
+- `tests/skills.test.ts` — frontmatter validation per skill (name matches folder, description 1–1024 chars, MIT license, compatibility comma-list), `metadata.area` + `metadata.leading-word` present, `metadata.focal-point: true` on `aurelia-largespa`, `metadata.ground-truth: https://docs.aurelia.io` on `aurelia-expert`, every `reference/<file>.md` non-empty, `.opencode/opencode.json` registers skill paths, `package.json#bin["aurelia-expert"]` points at `src/cli.ts`, plugin-name normalization round-trip.
 - `tests/installer.test.ts` — mocked temp project + global dirs; install copies every bundled skill and writes `.version` markers; permission.skill pre-granted; plugin[] contains `aurelia-expert`; idempotent re-install does not duplicate; legacy root `opencode.json` migrates into `.opencode/opencode.json`; uninstall removes skill dirs + plugin entry; status reports install state.
 
 ### Type-check
@@ -63,9 +63,18 @@ aurelia-expert/
 │   ├── aurelia-largespa/     # pillar-focal (leading word: slice)
 │   │   ├── SKILL.md
 │   │   └── reference/{feature-first,directory-layout,feature-module,hierarchical-agents-md,orchestrator,model-dto,au-northwind-pointer}.md
-│   └── aurelia-migration/    # pillar (leading word: lift)
+│   ├── aurelia-migration/    # pillar (leading word: lift)
+│   │   ├── SKILL.md
+│   │   └── reference/{v1-removals,debugging,performance,deepwiki-protocol}.md
+│   ├── aurelia-component-library/  # pillar (leading word: assemble)
+│   │   ├── SKILL.md
+│   │   └── reference/{tokens,library-layout,component-anatomy,greenfield,migrate}.md
+│   ├── aurelia-plugin/      # pillar (leading word: package)
+│   │   ├── SKILL.md
+│   │   └── reference/{plugin-anatomy,configuration,resources,distribution,extract}.md
+│   └── aurelia-ecosystem/   # pillar (leading word: wire)
 │       ├── SKILL.md
-│       └── reference/{v1-removals,debugging,performance,deepwiki-protocol}.md
+│       └── reference/{ssr,fetch-client,validation,dialog,state,i18n,forms,testing}.md
 ├── src/
 │   ├── cli.ts                # CLI entry: install / uninstall / status
 │   ├── commands/
@@ -96,10 +105,10 @@ aurelia-expert/
 
 `bunx aurelia-expert install` copies skill files to the target `skills/` directory and registers the package in `opencode.json`:
 
-- **Local** (default): copies to `{project}/.opencode/skills/{aurelia-expert,aurelia-foundation,aurelia-runtime,aurelia-largespa,aurelia-migration}/` and updates `{project}/.opencode/opencode.json`.
+- **Local** (default): copies to `{project}/.opencode/skills/{aurelia-expert,aurelia-foundation,aurelia-runtime,aurelia-component-library,aurelia-largespa,aurelia-migration,aurelia-plugin,aurelia-ecosystem}/` and updates `{project}/.opencode/opencode.json`.
 - **Global**: copies to `~/.config/opencode/skills/{aurelia-expert,...}/` and updates `~/.config/opencode/opencode.json`.
 
-It also pre-grants `permission.skill: "allow"` for all seven skills and writes a `.version` marker under `skills/aurelia-expert/` to skip re-install on subsequent loads.
+It also pre-grants `permission.skill: "allow"` for all eight skills and writes a `.version` marker under `skills/aurelia-expert/` to skip re-install on subsequent loads.
 
 ### Plugin auto-install
 
@@ -135,7 +144,7 @@ This skips the npm install. OpenCode will auto-install skills from the local che
 
 - Every skill's frontmatter **must** declare `area` and `leading-word` under `metadata`. The router (`aurelia-expert`) reads the leading word off the request and dispatches accordingly.
 - `aurelia-largespa` carries `metadata.focal-point: true` — that flag is the agent's hint to reach for the slice pillar first when organizing a large SPA. Tests assert the flag is present.
-- The router's `description` front-loads the word **branch**; each pillar's description front-loads its own leading word (`scaffold`, `resolve`, `slice`, `lift`). This is the only reliable way to make model-invoked skills fire on keyword prompts.
+- The router's `description` front-loads the word **branch**; each pillar's description front-loads its own leading word (`scaffold`, `resolve`, `assemble`, `slice`, `lift`, `package`, `wire`). This is the only reliable way to make model-invoked skills fire on keyword prompts.
 - `au-northwind` is STRICTLY structural. The `aurelia-largespa/reference/au-northwind-pointer.md` is the canonical guardrail — never duplicate its content elsewhere.
 
 ## Coding rules

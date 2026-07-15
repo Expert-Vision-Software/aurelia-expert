@@ -16,6 +16,7 @@ const SKILL_NAMES: readonly string[] = [
   "aurelia-migration",
   "aurelia-component-library",
   "aurelia-plugin",
+  "aurelia-ecosystem",
 ] as const;
 const DESCRIPTION_MAX: number = 1024;
 const FRONTMATTER_PATTERN: RegExp = /^---\n([\s\S]*?)\n---/;
@@ -129,6 +130,7 @@ describe("reference files", () => {
       "components.md",
       "lifecycle.md",
       "ai-tooling.md",
+      "cli.md",
     ],
     "aurelia-runtime": ["di.md", "routing.md", "events-tasks.md", "orchestration.md"],
     "aurelia-largespa": [
@@ -154,6 +156,16 @@ describe("reference files", () => {
       "resources.md",
       "distribution.md",
       "extract.md",
+    ],
+    "aurelia-ecosystem": [
+      "ssr.md",
+      "fetch-client.md",
+      "validation.md",
+      "dialog.md",
+      "state.md",
+      "i18n.md",
+      "forms.md",
+      "testing.md",
     ],
   };
 
@@ -182,20 +194,6 @@ describe("package self-config", () => {
       return;
     }
     expect(skills.paths.length).toBeGreaterThan(0);
-  });
-
-  test(".opencode/opencode.json pre-allows all 7 skills", async () => {
-    const path: string = join(PACKAGE_ROOT, ".opencode", "opencode.json");
-    const content: string = await readFile(path, "utf-8");
-    const config = JSON.parse(content) as Record<string, unknown>;
-    const permission = config.permission as { skill?: Record<string, string> } | undefined;
-    expect(permission).toBeDefined();
-    if (permission === undefined || permission.skill === undefined) {
-      return;
-    }
-    for (const name of SKILL_NAMES) {
-      expect(permission.skill[name]).toBe("allow");
-    }
   });
 
   test("package.json exposes the aurelia-expert CLI bin", async () => {

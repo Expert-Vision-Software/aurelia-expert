@@ -64,4 +64,4 @@ Use the slice layout rather than inventing an alternative while slicing an app.
 - Aurelia v2 component, binding, lifecycle, and DI API authoring beyond these structural patterns → `aurelia-authoring`.
 - Aurelia v1-to-v2 API translation and removed API troubleshooting → `aurelia-migration`.
 - Vite, Babel decorators, builds, and package configuration → `aurelia-tooling`.
-- Unit, component, and end-to-end test architecture → `aurelia-testing`.
+- Unit, component, and end-to-end test architecture → `aurelia-ecosystem` (see its `reference/testing.md`).
