@@ -1,18 +1,18 @@
 # AGENTS.md - aurelia-expert
 
 <critical_rules priority="highest">
-1. The seven bundled skills describe **Aurelia v2 only**. Six of the seven v1 patterns are prohibited (REMOVED or compile-time error): `.delegate` on custom events (throws AUR0713 at compile time), `<router-view>`, `PLATFORM.moduleName`, `configureRouter`, `<compose>`, `activate/deactivate`. `@inject` is **DEPRECATED** (still valid, `resolve()` is preferred) — it must not be stated as REMOVED. Severity levels in `reference/v1-removals.md` are the authoritative classification; never contradict them in skill bodies.
+1. The eight bundled skills describe **Aurelia v2 only**. Six of the seven v1 patterns are prohibited (REMOVED or compile-time error): `.delegate` on custom events (throws AUR0713 at compile time), `<router-view>`, `PLATFORM.moduleName`, `configureRouter`, `<compose>`, `activate/deactivate`. `@inject` is **DEPRECATED** (still valid, `resolve()` is preferred) — it must not be stated as REMOVED. Severity levels in `reference/v1-removals.md` are the authoritative classification; never contradict them in skill bodies.
 2. `au-northwind` is **STRUCTURAL ONLY**. Reference it for folder layout, slice boundaries, and hierarchical `Agents.md` patterns — never as an Aurelia v2 API source. The `aurelia-largespa/reference/au-northwind-pointer.md` is the single source of truth for this guardrail; do not duplicate it elsewhere.
-3. The router (`aurelia-expert`) is the **single entry point**. It hands off to a pillar and stops. The six pillars are peer-skills, not nested; never re-route from one pillar to another. If two branches both fit, defer to the more specific one (`aurelia-migration` > `aurelia-largespa` for migration-of-large-SPA prompts; `aurelia-migration` > `aurelia-component-library` for migration-with-library prompts; `aurelia-migration` > `aurelia-plugin` for packaging-v1-source prompts; see `aurelia-expert/SKILL.md` Precedence section).
+3. The router (`aurelia-expert`) is the **single entry point**. It hands off to a pillar and stops. The seven pillars are peer-skills, not nested; never re-route from one pillar to another. If two branches both fit, defer to the more specific one (`aurelia-migration` > `aurelia-largespa` for migration-of-large-SPA prompts; `aurelia-migration` > `aurelia-component-library` for migration-with-library prompts; `aurelia-migration` > `aurelia-plugin` for packaging-v1-source prompts; see `aurelia-expert/SKILL.md` Precedence section).
 4. The active project's local Aurelia instructions file (`AGENTS.md`, `CLAUDE.md`, or repo conventions) **overrides** anything in this package. The pillars' guardrails (`.trigger`, kebab-case, `import type`, `.style` property binding, singleton DI over EventAggregator, Models not DTOs) are defaults; project rules win.
-5. The `description` field on every skill's frontmatter must remain ≤1024 characters, in third person, and front-load the leading word (`branch`, `scaffold`, `resolve`, `assemble`, `slice`, `lift`, `package`). Tests in `tests/skills.test.ts` enforce this — do not weaken the assertions.
+5. The `description` field on every skill's frontmatter must remain ≤1024 characters, in third person, and front-load the leading word (`branch`, `scaffold`, `resolve`, `assemble`, `slice`, `lift`, `package`, `wire`). Tests in `tests/skills.test.ts` enforce this — do not weaken the assertions.
 </critical_rules>
 
 <context_hierarchy>
 <system>OpenCode plugin loader + npm distribution</system>
 <domain>Aurelia v2 MVVM SPA expertise, packaged for AI coding agents</domain>
-<task>Bundle seven router-routed markdown skills into a publishable OpenCode plugin + npm package</task>
-<execution>npm install `aurelia-expert` → OpenCode loads `plugin.ts#config()` → idempotent install of seven skills into `.opencode/skills/`</execution>
+<task>Bundle eight router-routed markdown skills into a publishable OpenCode plugin + npm package</task>
+<execution>npm install `aurelia-expert` → OpenCode loads `plugin.ts#config()` → idempotent install of eight skills into `.opencode/skills/`</execution>
 </context_hierarchy>
 
 <role>
@@ -33,11 +33,12 @@
 <skill name="aurelia-migration" path="skills/aurelia-migration/SKILL.md" leading-word="lift" role="pillar" requires="aurelia-expert (router)" references="v1-removals, debugging, performance, deepwiki-protocol" />
 <skill name="aurelia-component-library" path="skills/aurelia-component-library/SKILL.md" leading-word="assemble" role="pillar" requires="aurelia-expert (router)" references="tokens, library-layout, component-anatomy, greenfield, migrate" />
 <skill name="aurelia-plugin" path="skills/aurelia-plugin/SKILL.md" leading-word="package" role="pillar" requires="aurelia-expert (router)" references="plugin-anatomy, configuration, resources, distribution, extract" />
+<skill name="aurelia-ecosystem" path="skills/aurelia-ecosystem/SKILL.md" leading-word="wire" role="pillar" requires="aurelia-expert (router)" references="ssr, fetch-client, validation, dialog, state, i18n, forms, testing" />
 </bundled_skills>
 
 <self_config>
 <location>.opencode/opencode.json</location>
-<purpose>Register `../skills` as a skill path and pre-allow all seven skills for the package's own dev workflow</purpose>
+<purpose>Dev-only config for this repo (registers `../.agents/skills`); NOT shipped (`package.json#files` excludes `.opencode`) and does NOT reference the package's own skills. Consumer permission-allowlisting is the installer's job: `Installer.ensureSkillPermissions` writes `permission.skill[name]="allow"` for every bundled skill into the consumer's opencode.json at install time.</purpose>
 <pointer_in_package_json>index.ts → plugin.ts (verbatim one-line re-export)</pointer_in_package_json>
 <opencode_plugin_entry>"aurelia-expert"</opencode_plugin_entry>
 </self_config>
@@ -96,7 +97,7 @@
 </coding_rules>
 
 <skill_content_rules>
-The following教训 emerged from a systematic DeepWiki validation sweep of all seven skills. Violations
+The following教训 emerged from a systematic DeepWiki validation sweep of all eight skills. Violations
 of any rule below have shipped into released skill content and required patches.
 
 ## Source hierarchy

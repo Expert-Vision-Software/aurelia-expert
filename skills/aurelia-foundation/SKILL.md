@@ -5,7 +5,7 @@ license: MIT
 compatibility: opencode, claude-code, and any skill-compatible agent
 metadata:
   area: foundation
-  sub-areas: philosophy, quickstart, components, lifecycle, ai-tooling
+  sub-areas: philosophy, quickstart, components, lifecycle, ai-tooling, cli
   leading-word: scaffold
   ground-truth: https://docs.aurelia.io
 ---
@@ -27,6 +27,7 @@ Match the request to exactly one branch. Every branch lives in `reference/` and 
 |---|---|
 | "What is Aurelia?", "why Aurelia over React?", "is Aurelia stable?" | [reference/philosophy.md](reference/philosophy.md) |
 | "Scaffold a new project", "hello world", "first `main.ts`", "make aurelia my-app" | [reference/quickstart.md](reference/quickstart.md) |
+| "`npx makes` feature flags", "silent select `-s`", "scaffold with Tailwind/Vitest/Playwright/Storybook" | [reference/cli.md](reference/cli.md) |
 | "Create a custom element", "kebab-case name", "bindable", "dependencies array" | [reference/components.md](reference/components.md) |
 | "`binding` / `attached` / `unbinding`", "lifecycle order", "dispose subscriptions" | [reference/lifecycle.md](reference/lifecycle.md) |
 | "Use an AI to scaffold this", "DHB prompts", "NotebookLM ground truth" | [reference/ai-tooling.md](reference/ai-tooling.md) |
@@ -35,7 +36,7 @@ If the request spans two pillars (e.g. "scaffold a custom element with lifecycle
 
 ## Hard guardrails (apply to every branch)
 
-These are non-negotiable across all six pillars. Each is enforced by the runtime or build pipeline; ignoring any of them is a runtime error or a silent prod bug.
+These are non-negotiable across all seven pillars. Each is enforced by the runtime or build pipeline; ignoring any of them is a runtime error or a silent prod bug.
 
 - **`.trigger` for custom events.** `.delegate` on a custom event throws `AUR0713` (template compilation error). Use `.delegate` only on native DOM events.
 - **Kebab-case element names.** Every custom element name must contain a hyphen (`user-profile`, not `userProfile`).

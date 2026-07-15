@@ -56,7 +56,7 @@ When migrating in a project whose instructions file declares these rules, they a
 - **Authoring new Aurelia 2 code from scratch** (conventions, feature-first layout,
   DI patterns, Model/DTO flow) → `aurelia-authoring` skill in this package.
 - **Vite 8 / Babel decorator pipeline** → `aurelia-tooling` skill.
-- **Testing setup** → `aurelia-testing` skill.
+- **Testing setup** → `aurelia-ecosystem` skill (see its `reference/testing.md`).
 
 ## "How Do I…" routing
 
