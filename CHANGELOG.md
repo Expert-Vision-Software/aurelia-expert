@@ -5,7 +5,7 @@ All notable changes to `aurelia-expert` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.1] - 2026-07-14
+## [0.3.0] - 2026-07-14
 
 ### Added
 - New bundled skill `aurelia-ecosystem` — leading word **wire**, seventh pillar (eighth skill overall). Owns the first-party plugin and runtime-ecosystem surface ported and adapted from the vendor `aurelia/skills` package: `@aurelia/fetch-client` (HTTP), `@aurelia/validation`, `@aurelia/dialog`, `@aurelia/state`, `@aurelia/i18n`, forms (`model.bind`/`matcher.bind`/`submit.trigger:prevent`), Vitest + `@aurelia/testing` component testing, and SSR/prerendering (`aurelia2-ssr`, remount takeover, hydration, sitemap/robots). Each ported reference carries an upstream-lineage comment and adapts to this package's guardrails (`resolve()` DI, `dispose`-hook cleanup for `IEventAggregator`, narrow `.style` rule, prohibitions deferred to `aurelia-migration/reference/v1-removals.md`).
