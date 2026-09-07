@@ -4,7 +4,7 @@ How to use an AI agent (Claude, Cursor, NotebookLM) to scaffold Aurelia code wit
 
 ## Why scaffolding an Aurelia agent is non-trivial
 
-Aurelia's pre-training footprint is smaller than React's, and Aurelia 1 / Aurelia 2 API surfaces overlap on vocabulary while diverging on semantics. An agent without explicit grounding will produce v1 patterns (`PLATFORM.moduleName`, `configureRouter`, `.delegate` on custom events) that *look* right and break at runtime. The scaffold here is designed to make those breaks impossible.
+Aurelia's pre-training footprint is smaller than React's, and Aurelia 1 / Aurelia 2 API surfaces overlap on vocabulary while diverging on semantics. An agent without explicit grounding will produce v1 patterns (`PLATFORM.moduleName`, `configureRouter`, `.delegate`) that *look* right and break at runtime. The scaffold here is designed to make those breaks impossible.
 
 ## Layer 1 — Ground truth
 
@@ -26,7 +26,7 @@ Three prompt shapes cover most scaffolding work. Each has an explicit grounding 
 
 Use when the user says "scaffold this", "set up Aurelia", or any first-green-field task. The prompt template:
 
-> You are scaffolding an Aurelia 2 project. **Only Aurelia 2.** Use `npx makes aurelia my-app` with the Vite + TypeScript stack. Pick kebab-case element names, the `name.ts` + `name.html` pairing convention, and the `resolve()` DI function — never `@inject`. Bootstrap with `Aurelia.app(MyApp).start()`; do not introduce `PLATFORM.moduleName`. **Ground-truth:** `https://docs.aurelia.io`. For any API you cite, give the `aurelia/aurelia/blob/master/packages/...` deep-link. If you cannot find a v2 reference, say so — do not invent.
+> You are scaffolding an Aurelia 2 project. **Only Aurelia 2.** Use `npx makes aurelia my-app` with the Vite + TypeScript stack. Pick kebab-case element names, the `name.ts` + `name.html` pairing convention, and the `resolve()` DI function over the deprecated `@inject` decorator. Bootstrap with `Aurelia.app(MyApp).start()`; do not introduce `PLATFORM.moduleName`. **Ground-truth:** `https://docs.aurelia.io`. For any API you cite, give the `aurelia/aurelia/blob/master/packages/...` deep-link. If you cannot find a v2 reference, say so — do not invent.
 
 Add this final clause (mirrors [SKILL.md Hard guardrails](../SKILL.md#hard-guardrails-apply-to-every-branch)):
 
@@ -60,7 +60,7 @@ NotebookLM-ingests the Aurelia docs and gives the agent a sandboxed corpus. The 
 3. In the notebook chat, ask:
    > "Given only these sources, scaffold an Aurelia 2 hello-world. Cite the source for each step. If a step is not covered, say so."
 4. Then ask:
-   > "List any v1 patterns (`PLATFORM.moduleName`, `configureRouter`, `<router-view>`, `<compose>`, `.delegate` on custom events, `@inject` decorator, `activate`/`deactivate` hooks) that appear in the generated code, and replace each with the v2 equivalent. Cite the replacement's source."
+   > "List any v1 patterns (`PLATFORM.moduleName`, `configureRouter`, `<router-view>`, `<compose>`, `.delegate`, `@inject` decorator, `activate`/`deactivate` hooks) that appear in the generated code, and replace each with the v2 equivalent. Cite the replacement's source."
 
 The second pass is the feedback loop. NotebookLM's grounding prevents the agent from importing the v1 patterns it learned during pre-training.
 
@@ -89,7 +89,7 @@ The reconciliation step is what makes the scaffold stable: a single research pas
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `AUR0713` on a custom event | Agent used `.delegate` on a custom event | Re-prompt with the **Hard guardrails** clause from [SKILL.md](../SKILL.md) verbatim |
+| `AUR0713` on an event binding | Agent used `.delegate` (removed for all events) | Re-prompt with the **Hard guardrails** clause from [SKILL.md](../SKILL.md) verbatim |
 | `style="width:{};"` in prod bundle | Agent used inline interpolation | Re-prompt with the `.style` property binding rule verbatim |
 | Module not found, runtime error on first import | Agent used a runtime `import` for an interface | Re-prompt: split into `import type` and regular `import` per `verbatimModuleSyntax: true` |
 | `PLATFORM is not defined` | Agent imported v1 module | Forbid v1; cite the v2 equivalent each time |

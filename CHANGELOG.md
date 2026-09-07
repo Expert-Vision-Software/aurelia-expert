@@ -5,6 +5,19 @@ All notable changes to `aurelia-expert` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-09-07
+
+### Added
+- Skill content synced to Aurelia `2.0.0-rc.1` / `2.0.0-rc.2` (validated against DeepWiki + raw source): `useEagerLoading` router option, containerless `<au-viewport>` support, `canUnload` route-context restoration, writable `RouteNode.title`, task-queue timed slices with `tasksSettled()` and `TaskQueueAggregateError` (`events-tasks.md`), and the deprecated built-in `.email()` validation rule with its RFC-compliant replacement (`validation.md`).
+
+### Changed
+- **`.delegate` and `.call` are removed from the v2 binding command set entirely** — for custom AND native DOM events alike (source-verified in `packages/template-compiler/src/binding-command.ts`; AUR0713's help text states the removal). All ~59 skill-body statements claiming "`.delegate` stays valid for native DOM events" corrected across 15 files; `.capture` documented as the capture-phase command and lambdas as the `.call` replacement; `@aurelia/compat-v1`'s `compatRegistration` noted as the incremental-migration escape hatch.
+- `AGENTS.md` critical rule 1 and the skill_content_rules ERROR-CODE taxonomy now scope the AUR0713 rule to `.delegate` on any event (previously "custom events" only).
+
+### Fixed
+- **DI error-code audit (DeepWiki + `kernel`/`template-compiler` source):** `AUR0010` corrected to "intrinsic type used as a DI token" (was "resolve() of unregistered token"); new rows for `AUR0012` (interface with no registration/default) and `AUR0017` (same via `newInstanceOf`/`newInstanceForScope`, PR #2438); `AUR0019` corrected to invalid Event Aggregator `publish` event name/instance; `AUR0022` corrected to `@inject` on an unsupported target type; containerless + Shadow DOM re-mapped from `AUR0901` to the real `AUR0501`; `AUR0907` corrected to dialog cancel-with-`rejectOnCancel` (no error code exists for hyphen-less element names — kebab-case stays as a convention guardrail). `AUR0713` row broadened to "unknown binding command" with the verified valid-command list; `AUR0177` row sharpened to the confirmed destructuring triggers (nested patterns, duplicate locals, reserved names).
+- **`@inject` DEPRECATED violations:** all remaining "removed"/"does not work"/"never" statements corrected to the canonical "deprecated — `resolve()` preferred": `di.md` (×2), `au-northwind-pointer.md` ("Never use" list), `ai-tooling.md` scaffold prompt, `README.md` ("is gone in v2"), `v1-removals.md` (FORBIDDEN framing + example comment), `components.md` contamination list.
+
 ## [0.3.0] - 2026-07-14
 
 ### Added

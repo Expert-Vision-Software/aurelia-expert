@@ -34,7 +34,7 @@ skills/
 
 The active project's local Aurelia instructions file (`AGENTS.md`, `CLAUDE.md`, or repo-level conventions) overrides anything this package says. The router does not enforce project rules; the pillar skills do. The operational rules below are a common precedence surface pillars should honour by default; a project's own instructions may replace or sharpen any of these:
 
-- `.trigger` for custom events (NOT `.delegate`)
+- `.trigger` for all event listeners (`.delegate` is removed)
 - kebab-case element names
 - `import type` for interfaces
 - `.style` property binding (NOT inline `style="…${value}%"` interpolation)

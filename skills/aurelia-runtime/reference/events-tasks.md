@@ -59,26 +59,22 @@ cancel();
 
 Use these instead of `setTimeout` / `Promise.resolve().then()` when you need the framework to coordinate flush timing (binding, rendering).
 
-## Custom events: `.trigger`, not `.delegate`
+The queue drains automatic work in timed slices, so large finite workloads no longer trip the recursive deadlock guard. Observe full completion with `tasksSettled()`; when multiple tasks fail, the failures surface together as `TaskQueueAggregateError`.
 
-Custom events fire with `.trigger`. `.delegate` for custom events throws **AUR0713** at compile time.
+## Event listeners: `.trigger` only
+
+`.trigger` is the only event-listener command — it works for custom and native DOM events alike. `.delegate` is removed from the v2 command set and throws **AUR0713** at compile time.
 
 ```html
-<!-- ✅ Custom event — .trigger -->
+<!-- ✅ .trigger — the only listener command -->
 <nav nav-click.trigger="handleNav($event)"></nav>
+<button @click.trigger="open()">Open</button>
 
-<!-- ❌ AUR0713 — .delegate on custom event (compile-time error) -->
+<!-- ❌ AUR0713 — .delegate removed (compile-time error) -->
 <nav nav-click.delegate="handleNav($event)"></nav>
 ```
 
-Native DOM events still use `.delegate` (or `@event`):
-
-```html
-<button @click="onClick()">Click me</button>
-<input @keydown.enter.prevent="onEnter()">
-```
-
-The split exists because `.trigger` dispatches the custom event through Aurelia's event system; `.delegate` uses native DOM bubbling, which does not match custom event semantics in v2.
+`.capture` attaches capture-phase listeners. `.call` is removed too — pass lambdas instead. An incremental v1 migration can register `@aurelia/compat-v1`'s `compatRegistration` to re-add `.delegate` temporarily.
 
 ## Event modifiers
 
@@ -87,7 +83,6 @@ Append to native event bindings with `:`:
 | Modifier | Example | Purpose |
 |----------|---------|---------|
 | `:capture` | `@click.capture` | Handle in capture phase |
-| `:delegate` | `@click.delegate` | Native DOM event (default for `@event`) |
 | `:self` | `@click.self` | Fire only when target is element itself |
 | `:stop` | `@click.stop` | Stop propagation |
 | `:prevent` | `@click.prevent` | `preventDefault()` |
@@ -116,7 +111,7 @@ Use `IEventAggregator` only when many unrelated subscribers truly need the same 
 
 ## V1 contamination
 
-- `.delegate` for custom events → throws AUR0713 at compile time; use `.trigger`.
+- `.delegate` (any event) and `.call` → removed; both throw AUR0713 at compile time. Use `.trigger` / lambdas.
 
 ## Ground truth
 

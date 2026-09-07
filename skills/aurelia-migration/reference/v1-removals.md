@@ -1,7 +1,8 @@
 # v1 → v2 Removals & Renames
 
-> **FORBIDDEN.** Never write code in this style — every pattern below throws a
-> runtime error, silently breaks in production, or fails compilation in v2.
+> **FORBIDDEN.** Never write code in this style. REMOVED patterns throw a
+> runtime error, silently break in production, or fail compilation in v2;
+> DEPRECATED patterns still run but the listed v2 replacement is the standard.
 > When migrating, **lift** in place: replace the v1 call with its v2 replacement
 > before touching anything else.
 
@@ -13,7 +14,8 @@
 | `configureRouter(...)` callback | REMOVED | `@route` decorator co-located on the component |
 | `<router-view>` | RENAMED | `<au-viewport>` |
 | `<compose view-model="...">` | RENAMED | `<au-compose component="...">` (bindables renamed) |
-| `.delegate` on custom events | REMOVED → **AUR0713** (compile-time) | `.trigger` for custom events; `.delegate` only for native DOM |
+| `.delegate` (removed for ALL events — custom and native DOM) | REMOVED → **AUR0713** (compile-time) | `.trigger` everywhere; `@aurelia/compat-v1` re-adds `.delegate` for incremental migrations |
+| `.call` | REMOVED → **AUR0713** (compile-time) | Lambda expressions — preserve `this` without a command |
 | `@inject` decorator | DEPRECATED — prefer `resolve()` | `resolve()` functional API |
 | `activate(params)` / `deactivate()` hooks | RENAMED | `canLoad` / `loading` / `canUnload` / `unloading` |
 | `EventAggregator` as default cross-component bus | DE-EMPHASIZED | Singleton DI service — see `aurelia-authoring` |
@@ -100,28 +102,31 @@ export class App {}
 
 ### `.delegate` → `.trigger` (most-common lift mistake)
 
-**`.delegate` on a custom (non-DOM) event throws AUR0713** at compile time. This is
-the single most-encountered migration failure because v1 used `.delegate` for
-everything.
+**`.delegate` throws AUR0713 at compile time** — it is removed from the v2 binding
+command set entirely, for custom and native DOM events alike. This is the single
+most-encountered migration failure because v1 used `.delegate` for everything.
 
 ```html
 <!-- v1 — FORBIDDEN; throws AUR0713 in v2 (template compilation error) -->
 <nav nav-click.delegate="handleNav($event)"></nav>
+<button click.delegate="save()"></button>
 
 <!-- v2 — CORRECT -->
 <nav nav-click.trigger="handleNav($event)"></nav>
+<button click.trigger="save()"></button>
 ```
 
-Rule: **`.delegate` handles native DOM events bubbling up** (e.g. `@click.delegate`
-on a `<button>`). **`.trigger` raises a custom-event handler** on the element that
-fired it. Custom-element authors `dispatchEvent(new CustomEvent('nav-click'))` →
-the listener must use `.trigger`. See [reference/debugging.md](debugging.md) for
-the full AUR0713 fix.
+Rule: **`.trigger` is the only event-listener command** — it attaches the handler
+to the element itself. `.capture` exists for capture-phase listeners, and lambda
+expressions replace the removed `.call` command. Migrations that cannot lift all
+`.delegate` bindings at once can register `@aurelia/compat-v1`'s
+`compatRegistration` to re-add the command temporarily. See
+[reference/debugging.md](debugging.md) for the full AUR0713 fix.
 
 ### `@inject` → `resolve()`
 
 ```typescript
-// v1 — FORBIDDEN
+// v1 — DEPRECATED; the `aurelia-framework` import itself is REMOVED in v2
 import { inject } from 'aurelia-framework';
 @inject(HttpClient, ILogger)
 export class OrderService {
@@ -175,8 +180,8 @@ v2 idioms. Use it only when a partial migration is unavoidable.
 1. **Shell first.** `PLATFORM.moduleName`, `configureRouter`, `<router-view>`,
    `<compose>` — these touch the most files. Lift these before per-feature work.
 2. **Event binding sweep.** `.delegate` → `.trigger` is searchable; do a project
-   find/replace scoped to custom events only. Native `.delegate` on `@click`
-   stays as `.delegate`.
+   find/replace across ALL event bindings — `.delegate` is removed for native
+   DOM events too. `event.call="..."` lifts to a lambda expression.
 3. **DI sweep.** `@inject` / constructor-parameter decorators → `resolve()`.
    Leave legacy singletons in place until consumer files are lifted.
 4. **Lifecycle hooks.** Rename `activate` / `deactivate` last; these often carry

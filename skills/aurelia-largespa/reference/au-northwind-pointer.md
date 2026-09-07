@@ -3,7 +3,7 @@
 > [!CAUTION]
 > ## STRICT PROHIBITION — these v1 patterns are NEVER to be carried into v2 code, no matter what au-northwind's source shows.
 >
-> Never use `PLATFORM.moduleName`, `configureRouter`, `<router-view>`, `<compose viewModel="…">`, `.delegate`, `@inject`, or `activate/deactivate` in Aurelia v2 code.
+> Never use `PLATFORM.moduleName`, `configureRouter`, `<router-view>`, `<compose viewModel="…">`, `.delegate`, or `activate/deactivate` in Aurelia v2 code. `@inject` is deprecated — prefer `resolve()`.
 >
 > Use Aurelia v2 route dynamic imports and `<au-viewport>`, ordinary custom-element composition with local `dependencies`, `.trigger` for custom events, `resolve()` with `I`-prefixed tokens, and v2 lifecycle hooks instead. For API-by-API translation, load `aurelia-migration`.
 

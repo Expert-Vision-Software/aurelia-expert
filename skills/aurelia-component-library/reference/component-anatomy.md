@@ -12,7 +12,7 @@ The contract every library element honours: view-model + template pair, kebab ta
 6. **`<au-slot>` for projection**, not bare `<slot>`. `<slot>` requires `shadowOptions: { mode: 'open' }` (see `aurelia-migration/reference/debugging.md`, AUR0717). Light DOM is the default — only opt into Shadow DOM when style isolation is a hard requirement.
 7. **`.to-view` for read-only bindables** (label, disabled, current) — skips DOM observation for high-frequency or `false`/`0`/`''` values. Use default `.bind` only for forms (text inputs, textareas, selects).
 8. **`.style` property binding for dynamic CSS**, never inline `style="width: ${pct}%"`. Inline interpolation compiles to `style="width:{};"` for `0`/`false`/`''` in production (a dev-build-hidden bug).
-9. **`.trigger` for custom events**, never `.delegate` — `.delegate` on a custom event throws AUR0713 at compile time.
+9. **`.trigger` for all event listeners**, never `.delegate` — `.delegate` is removed for every event type and throws AUR0713 at compile time.
 
 ## The `ui-button` sample — view-model
 
@@ -180,5 +180,5 @@ The companion side of the rule is the rule above: `.trigger` is mandatory for cu
 - `<au-slot>` for projection, not bare `<slot>`.
 - All form-bound `value.bind`; everything else (label, disabled, current, etc.) `.to-view`.
 - Dynamic CSS via `.style` binding, never inline interpolation.
-- Custom events via `.trigger`; native DOM events via `@click.delegate` / `@click`.
+- Custom and native DOM events via `.trigger` (or the `@click` short form).
 - Every CSS rule resolves to `var(--au-*)` — no raw `#hex`, `rem`, `ms`, or `px` literals.

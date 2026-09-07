@@ -60,7 +60,7 @@ export class UserPicker {
 </user-picker>
 ```
 
-`.trigger` (not `.delegate`) — otherwise throws **AUR0713** at compile time. Full rationale: [reference/events-tasks.md](events-tasks.md).
+`.trigger` is the only event-listener command — `.delegate` is removed and throws **AUR0713** at compile time. Full rationale: [reference/events-tasks.md](events-tasks.md).
 
 ## Service-as-store
 

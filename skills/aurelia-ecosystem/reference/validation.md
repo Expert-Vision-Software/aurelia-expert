@@ -67,6 +67,10 @@ Built-in rules: `required()`, `minLength(n)`, `maxLength(n)`, `minItems(n)`, `ma
 `min(n)`, `max(n)`, `range(min, max)`, `between(min, max)`, `equals(value)`, `matches(regex)`,
 `satisfies(fn)` (custom predicate, may be async), `satisfiesRule(ruleInstance)`.
 
+`email()` is deprecated — its pattern is neither RFC 5322 nor RFC 6532 compliant. Validate
+addresses with `.matches(regex)` or a custom rule via `.satisfiesRule()` / `.satisfies()` backed
+by an RFC-compliant parser.
+
 Modifiers: `.withMessage(text)` (supports `$displayName`, `$value`, `$rule` placeholders),
 `.withMessageKey(key)`, `.displayName(name)`, `.when(predicate)` (conditional), `.tag(tag)`
 (selective validation), `.then()` (run the next rule only if the previous passed — good for gating

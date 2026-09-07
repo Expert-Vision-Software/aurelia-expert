@@ -1,7 +1,7 @@
 # AGENTS.md - aurelia-expert
 
 <critical_rules priority="highest">
-1. The eight bundled skills describe **Aurelia v2 only**. Six of the seven v1 patterns are prohibited (REMOVED or compile-time error): `.delegate` on custom events (throws AUR0713 at compile time), `<router-view>`, `PLATFORM.moduleName`, `configureRouter`, `<compose>`, `activate/deactivate`. `@inject` is **DEPRECATED** (still valid, `resolve()` is preferred) — it must not be stated as REMOVED. Severity levels in `reference/v1-removals.md` are the authoritative classification; never contradict them in skill bodies.
+1. The eight bundled skills describe **Aurelia v2 only**. Six of the seven v1 patterns are prohibited (REMOVED or compile-time error): `.delegate` (any event — removed from the v2 binding command set; throws AUR0713 at compile time), `<router-view>`, `PLATFORM.moduleName`, `configureRouter`, `<compose>`, `activate/deactivate`. `@inject` is **DEPRECATED** (still valid, `resolve()` is preferred) — it must not be stated as REMOVED. Severity levels in `reference/v1-removals.md` are the authoritative classification; never contradict them in skill bodies.
 2. `au-northwind` is **STRUCTURAL ONLY**. Reference it for folder layout, slice boundaries, and hierarchical `Agents.md` patterns — never as an Aurelia v2 API source. The `aurelia-largespa/reference/au-northwind-pointer.md` is the single source of truth for this guardrail; do not duplicate it elsewhere.
 3. The router (`aurelia-expert`) is the **single entry point**. It hands off to a pillar and stops. The seven pillars are peer-skills, not nested; never re-route from one pillar to another. If two branches both fit, defer to the more specific one (`aurelia-migration` > `aurelia-largespa` for migration-of-large-SPA prompts; `aurelia-migration` > `aurelia-component-library` for migration-with-library prompts; `aurelia-migration` > `aurelia-plugin` for packaging-v1-source prompts; see `aurelia-expert/SKILL.md` Precedence section).
 4. The active project's local Aurelia instructions file (`AGENTS.md`, `CLAUDE.md`, or repo conventions) **overrides** anything in this package. The pillars' guardrails (`.trigger`, kebab-case, `import type`, `.style` property binding, singleton DI over EventAggregator, Models not DTOs) are defaults; project rules win.
@@ -122,7 +122,7 @@ a prohibition, confirm with DeepWiki. The correct severity levels are:
 
 - **REMOVED** — does not exist in v2 at all (e.g. `PLATFORM.moduleName`, `configureRouter`)
 - **DEPRECATED** — still works but a v2-native alternative exists and is preferred (e.g. `@inject`, `IEventAggregator` as default bus)
-- **ERROR CODE** — removed from the binding command set and throws at compile time (`.delegate` on custom events → AUR0713)
+- **ERROR CODE** — removed from the binding command set and throws at compile time (`.delegate` on any event → AUR0713; `.call` also removed → lambda expressions)
 
 The v1-removals table uses REMOVED / DEPRECATED correctly; skill body text must match.
 

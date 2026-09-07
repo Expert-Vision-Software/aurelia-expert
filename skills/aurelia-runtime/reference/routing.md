@@ -47,6 +47,8 @@ Any component declaring child routes has an `<au-viewport>` somewhere in its tem
 
 Use `<a load="path">` for declarative links. Avoid `href="/orders/42"` strings.
 
+Containerless `<au-viewport>` elements work, including nested containerless viewports and containerless routed components.
+
 ## Context-aware navigation
 
 Resolve relative paths with `IContextRouter`:
@@ -119,7 +121,7 @@ export class AdminPage {
 }
 ```
 
-`canLoad` returning `false` blocks the navigation; returning `{ redirect: 'path' }` redirects. `loading` returning a Promise delays the route until it resolves.
+`canLoad` returning `false` blocks the navigation; returning `{ redirect: 'path' }` redirects. `loading` returning a Promise delays the route until it resolves. Returning `false` from `canUnload` cancels the navigation and restores the previous route context. `RouteNode.title` is writable: lifecycle and router hooks can update the title during navigation.
 
 ## Router configuration
 
@@ -129,11 +131,14 @@ export class AdminPage {
 Aurelia.register(
   RouterConfiguration.customize({
     useUrlFragmentHash: true,         // hash-based routing
+    useEagerLoading: true,            // build the full routing table at startup
     resolutionMode: 'hash-based',     // or 'history-api'
     navigationSyncStates: ['busy', 'swapping', 'completed'],
   }),
 );
 ```
+
+`useEagerLoading` resolves cold-start deep links into nested child routes that on-demand table building can miss.
 
 ## V1 contamination
 

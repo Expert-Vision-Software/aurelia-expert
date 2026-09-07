@@ -54,7 +54,7 @@ async loadAll() {
 }
 ```
 
-`@inject(T1, T2)` on the constructor does not work in v2. Do not write it.
+`@inject(T1, T2)` still works but is deprecated — prefer `resolve()` field initializers.
 
 ## Registration lifecycles
 
@@ -115,7 +115,7 @@ Concrete classes registered against tokens don't carry the prefix: `UserService`
 
 ## V1 contamination
 
-`@inject` decorator on constructor parameters does not work in v2. Use `resolve()`.
+`@inject` is deprecated, not removed — prefer `resolve()`. Parameter decorators inside constructors are not supported in v2 (TC39 decorators have no parameter decorators).
 
 ## Ground truth
 

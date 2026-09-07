@@ -38,14 +38,14 @@ These belong to Aurelia 1; they throw or silently break v2:
 - `PLATFORM.moduleName` → gone; use `@customElement` `dependencies` or `() => import(...)` in route `component`
 - `<router-view>` → use `<au-viewport>`
 - `<compose view-model>` → use `<au-compose>` with `component`
-- `.delegate` for custom events → throws **AUR0713** at compile time; use `.trigger`
+- `.delegate` (any event) and `.call` are removed → throws **AUR0713** at compile time; use `.trigger` / lambdas
 - `activate` / `deactivate` hooks → use `canLoad` / `loading` / `canUnload` / `unloading`
 
 ## Non-negotiables
 
 Override any earlier reading.
 
-- **Custom events**: `.trigger` only (`.delegate` throws AUR0713 at compile time).
+- **Event listeners**: `.trigger` only (`.delegate`/`.call` are removed — AUR0713 at compile time).
 - **Type imports**: `import type` / `export type` for interfaces — interfaces are erased at runtime.
 - **Singleton DI**: prefer singletons over `IEventAggregator` for cross-feature state.
 - **Service returns Model**: services expose Models, never DTOs; convert via `Model.fromDTO()` / `model.toDTO()`.
@@ -69,7 +69,7 @@ Each reference file covers one sub-area. Load the one that matches the question.
 
 - **DI** — `resolve()`, `DI.createInterface`, registration lifecycles, advanced resolvers → [reference/di.md](reference/di.md)
 - **Routing & navigation** — `@route`, `<au-viewport>`, `IContextRouter`, route parameters with `mergeStrategy`, lifecycle guards → [reference/routing.md](reference/routing.md)
-- **Events & tasks** — AppTask phases (`creating` / `hydrating` / ...), `TaskQueue`, `.trigger` vs `.delegate`, event modifiers → [reference/events-tasks.md](reference/events-tasks.md)
+- **Events & tasks** — AppTask phases (`creating` / `hydrating` / ...), `TaskQueue`, `.trigger`/`.capture` listeners, event modifiers → [reference/events-tasks.md](reference/events-tasks.md)
 - **Cross-feature orchestration** — thin-page mediator, bindables down / events up, service-as-store → [reference/orchestration.md](reference/orchestration.md)
 
 ## Ground truth

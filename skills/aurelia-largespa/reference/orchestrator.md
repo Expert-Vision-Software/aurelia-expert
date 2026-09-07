@@ -50,7 +50,7 @@ export class OrdersPage {
 <order-details order.bind="selectedOrder"></order-details>
 ```
 
-The child dispatches a typed, bubbling `CustomEvent<OrderModel>` named `order-selected`. The page listens with `.trigger`; never use `.delegate` for a custom event.
+The child dispatches a typed, bubbling `CustomEvent<OrderModel>` named `order-selected`. The page listens with `.trigger`; `.delegate` is removed in v2 and throws at compile time.
 
 ## Bindables down, events up
 

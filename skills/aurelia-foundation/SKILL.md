@@ -38,7 +38,7 @@ If the request spans two pillars (e.g. "scaffold a custom element with lifecycle
 
 These are non-negotiable across all seven pillars. Each is enforced by the runtime or build pipeline; ignoring any of them is a runtime error or a silent prod bug.
 
-- **`.trigger` for custom events.** `.delegate` on a custom event throws `AUR0713` (template compilation error). Use `.delegate` only on native DOM events.
+- **`.trigger` for all event listeners.** `.delegate` — on custom and native DOM events alike — is removed and throws `AUR0713` (template compilation error). `.capture` handles capture-phase listeners.
 - **Kebab-case element names.** Every custom element name must contain a hyphen (`user-profile`, not `userProfile`).
 - **`import type` / `export type` for interfaces.** Interfaces are type-only; runtime values use regular `import` / `export`. Project enforces via `verbatimModuleSyntax: true` in `tsconfig.json`.
 - **`.style` property binding for dynamic CSS when the value can be falsy.** Inline `style="width: ${value}%"` is safe when the value is guaranteed non-falsy; it compiles to `style="width:{};"` only when the value is `0`/`false`/`''` in production builds. Prefer `width.style="expr"` in any component where the interpolated value may be falsy.

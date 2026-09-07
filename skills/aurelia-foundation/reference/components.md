@@ -115,31 +115,28 @@ export class UserProfile {
 
 Hard rules (see [SKILL.md](../SKILL.md) for the full guardrails):
 
-- **`resolve()` over `@inject` decorator.** The legacy `@inject` decorator is gone in v2. Parameter decorators inside constructors are equally forbidden.
+- **`resolve()` over `@inject` decorator.** The `@inject` decorator still works but is deprecated; `resolve()` is the preferred v2 form. Parameter decorators inside constructors are equally forbidden.
 - **`import type` for the interface, regular `import` for the DI token.** Use `import type { IUserService }` and `import { IUserService }` (the `DI.createInterface` call exports the runtime token) — or split them into separate type and value imports as the `import type` discipline requires.
 - **Models, not DTOs.** Components consume `UserModel` (camelCase, `fromDTO()` converter). DTOs (PascalCase) stay inside the service layer.
 
-## Event binding (`.trigger` for custom events)
+## Event binding (`.trigger` for all listeners)
 
-`.trigger` and `.delegate` are not interchangeable; the runtime distinguishes them.
+`.trigger` is the only event-listener command in v2.
 
 | Form | Use for |
 |---|---|
-| `event.trigger="handler($event)"` | **Custom** events (e.g. `<my-card save.trigger="save($event)">`) — required |
-| `event.delegate="handler($event)"` | **Native DOM** events (e.g. `@click.delegate="..."`) — note `@` form is recommended |
-| `event.call="handler()"` | Invocation without event object |
+| `event.trigger="handler($event)"` | All events — custom (`<my-card save.trigger="save($event)">`) and native DOM (`@click.trigger="..."`) |
+| `event.capture="handler($event)"` | Capture-phase listeners |
 
-**Hard rule:** **`.trigger` is mandatory for custom events.** Using `.delegate` on a custom event throws `AUR0713` at compile time. Native DOM events keep `.delegate` or the modern `@click` short form.
+**Hard rule:** `.delegate` and `.call` are removed from the v2 command set — both throw `AUR0713` at compile time. Use `.trigger` for listeners and lambdas for callbacks.
 
 ```html
-<!-- ✅ Custom event: .trigger -->
+<!-- ✅ .trigger — custom and native events -->
 <my-card save.trigger="onSave($event)"></my-card>
-
-<!-- ❌ Custom event: .delegate throws AUR0713 (compile-time error) -->
-<my-card save.delegate="onSave($event)"></my-card>
-
-<!-- ✅ Native event: @click -->
 <button @click="onClick()">Save</button>
+
+<!-- ❌ .delegate throws AUR0713 (compile-time error) -->
+<my-card save.delegate="onSave($event)"></my-card>
 ```
 
 ## Dynamic CSS: prefer `.style` property binding
@@ -166,7 +163,7 @@ None of the following belong in a v2 component:
 - `configureRouter(config, router)` — use `@route` (covered in [lifecycle.md](lifecycle.md) and the router reference).
 - `<router-view>` — use `<au-viewport>`.
 - `<compose>` — use `<au-compose>` (and the `@compose` decorator where needed).
-- `@inject` — use `resolve()`.
-- `.delegate` on custom events — use `.trigger` (or the `@event` short form on native events).
+- `@inject` — deprecated; use `resolve()`.
+- `.delegate` (any event) and `.call` — use `.trigger` / lambdas.
 
 After scaffolding the component, jump to [lifecycle.md](lifecycle.md) for hook order and disposal rules.
