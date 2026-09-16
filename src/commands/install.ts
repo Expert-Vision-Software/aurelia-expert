@@ -2,25 +2,39 @@ import { install, type Scope } from "../installer.ts";
 
 export interface InstallOptions {
   scope: Scope | null;
+  force: boolean;
 }
 
 export async function installCommand(options: InstallOptions): Promise<void> {
   const scope: Scope = options.scope ?? "local";
-  const result = await install(scope);
+  const result = await install(scope, process.cwd(), {
+    addPluginConfig: true,
+    migrateRootConfig: true,
+    force: options.force,
+  });
+
+  if (result.action === "noop") {
+    console.log(`aurelia-expert already up to date (${scope === "global" ? "global" : "local"}).`);
+    return;
+  }
 
   console.log(
-    `aurelia-expert installed ${scope === "global" ? "globally" : "locally"}:`,
+    `aurelia-expert ${result.action === "upgraded" ? "upgraded" : "installed"} ` +
+      `${scope === "global" ? "globally" : "locally"}:`,
   );
   for (const p of result.skillPaths) {
     console.log(`  ${p}`);
+  }
+  for (const p of result.skipped) {
+    console.log(`  Skipped consumer-modified file (re-run with --force to overwrite): ${p}`);
   }
   if (result.migrated) {
     console.log("  Migrated: opencode.json → .opencode/opencode.json");
   }
   if (result.permissionConfigured) {
-    console.log("  Permission: skill.allow granted for all 5 skills");
+    console.log("  Permission: skill.allow granted for all 8 skills");
   }
   if (result.pluginAdded) {
-    console.log("  Plugin: aurelia-expert registered in opencode.json");
+    console.log("  Plugin: aurelia-expert@latest registered in opencode.json");
   }
 }

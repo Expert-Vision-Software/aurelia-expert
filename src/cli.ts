@@ -15,15 +15,18 @@ function printHelp(): void {
   console.log(`
 aurelia-expert v${VERSION}
 
-Five router-routed Aurelia v2 MVVM skills for AI coding agents.
+Eight router-routed Aurelia v2 MVVM skills for AI coding agents.
 
 Commands:
-  install     Copy skills to .opencode/skills/ and register in opencode.json
-  uninstall   Remove installed skills from .opencode/skills/
-  status      Check installation status
+  install     Copy skills to .opencode/skills/ (or the global config dir), grant
+              skill permissions, register aurelia-expert@latest, and write an
+              install manifest used for idempotent, drift-aware re-installs
+  uninstall   Remove installed skills and the plugin entry
+  status      Check installation status per scope
 
 Options:
   -s, --scope <scope>    Installation scope: "local" (default) or "global"
+      --force            Overwrite consumer-modified installed files
   -h, --help             Show this help message
   -v, --version          Show version
 
@@ -39,6 +42,7 @@ async function main(): Promise<void> {
   const { positionals, values } = parseArgs({
     options: {
       scope: { type: "string", short: "s" },
+      force: { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
       version: { type: "boolean", short: "v", default: false },
     },
@@ -65,9 +69,10 @@ async function main(): Promise<void> {
   }
 
   const scope: Scope | null = scopeArg === undefined ? null : (scopeArg as Scope);
+  const force: boolean = values.force === true;
 
   try {
-    await dispatch(command, scope);
+    await dispatch(command, scope, force);
   } catch (error) {
     const message: string = error instanceof Error ? error.message : String(error);
     console.error(`Error: ${message}`);
@@ -75,10 +80,10 @@ async function main(): Promise<void> {
   }
 }
 
-async function dispatch(command: string, scope: Scope | null): Promise<void> {
+async function dispatch(command: string, scope: Scope | null, force: boolean): Promise<void> {
   switch (command) {
     case "install":
-      await installCommand({ scope });
+      await installCommand({ scope, force });
       return;
     case "uninstall":
       await uninstallCommand({ scope });

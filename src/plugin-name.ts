@@ -1,5 +1,6 @@
 export class PluginNameNormalizer {
   private static readonly AT_INDEX_NONE: number = -1;
+  private static readonly LATEST_TAG: string = "latest";
 
   static normalize(entry: string): string {
     const trimmed: string = entry.trim().toLowerCase();
@@ -17,7 +18,11 @@ export class PluginNameNormalizer {
     return trimmed;
   }
 
-  matchesOurPackage(entry: string, packageName: string): boolean {
-    return PluginNameNormalizer.normalize(entry) === packageName.toLowerCase();
+  static canonicalize(entry: string): string {
+    return `${PluginNameNormalizer.normalize(entry)}@${PluginNameNormalizer.LATEST_TAG}`;
+  }
+
+  static matches(entry: string, packageName: string): boolean {
+    return PluginNameNormalizer.normalize(entry) === packageName.trim().toLowerCase();
   }
 }
