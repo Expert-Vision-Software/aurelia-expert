@@ -143,6 +143,24 @@ export class Installer {
     }
 
     const manifest: InstallManifest = await InstallManifest.read(manifestPath);
+    if (manifest.isUnreadable() && !options.force) {
+      console.warn(
+        `[${PACKAGE_NAME}] Install manifest at ${manifestPath} is present but unreadable; ` +
+          `refusing to overwrite installed files without verification. Re-run ` +
+          `"bunx ${PACKAGE_NAME} install --force" to rebuild it. Nothing was changed.`,
+      );
+      return {
+        action: "noop",
+        scope,
+        skillPaths: [],
+        configPath,
+        manifestPath,
+        skipped: [],
+        migrated,
+        permissionConfigured: false,
+        pluginAdded: false,
+      };
+    }
     const sameVersion: boolean = manifest.matchesVersion(version);
     const plannedFiles: PlannedSkillFile[] = await this.collectSkillFiles();
 

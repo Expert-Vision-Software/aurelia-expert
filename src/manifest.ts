@@ -20,18 +20,38 @@ export type ManifestFileDisposition = "write" | "keep" | "skip";
 
 export class InstallManifest {
   private readonly contents: ManifestContents | null;
+  private readonly unreadable: boolean;
 
-  private constructor(contents: ManifestContents | null) {
+  private constructor(contents: ManifestContents | null, unreadable: boolean = false) {
     this.contents = contents;
+    this.unreadable = unreadable;
   }
 
   static async read(manifestPath: string): Promise<InstallManifest> {
+    let content: string;
     try {
-      const parsed = JSON.parse(await readFile(manifestPath, "utf-8"));
-      return new InstallManifest(InstallManifest.normalize(parsed));
-    } catch {
-      return new InstallManifest(null);
+      content = await readFile(manifestPath, "utf-8");
+    } catch (error) {
+      if (InstallManifest.isFileNotFoundError(error)) {
+        return new InstallManifest(null, false);
+      }
+      return new InstallManifest(null, true);
     }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      return new InstallManifest(null, true);
+    }
+    const contents: ManifestContents | null = InstallManifest.normalize(parsed);
+    if (contents === null) {
+      return new InstallManifest(null, true);
+    }
+    return new InstallManifest(contents, false);
+  }
+
+  isUnreadable(): boolean {
+    return this.unreadable;
   }
 
   static async write(
@@ -93,6 +113,10 @@ export class InstallManifest {
       return sameVersion ? "keep" : "write";
     }
     return force ? "write" : "skip";
+  }
+
+  private static isFileNotFoundError(error: unknown): boolean {
+    return (error as NodeJS.ErrnoException).code === "ENOENT";
   }
 
   private static toManifestPath(relativePath: string): string {

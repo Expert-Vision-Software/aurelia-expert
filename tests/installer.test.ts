@@ -18,9 +18,7 @@ function makeInstaller(globalDir: string): Installer {
   return new Installer(PACKAGE_ROOT);
 }
 
-async function readConfig(path: string): Promise<Record<string, unknown>> {
-  return JSON.parse(await readFile(path, "utf-8")) as Record<string, unknown>;
-}interface Sandbox {
+interface Sandbox {
   projectDir: string;
   globalDir: string;
   installer: Installer;
@@ -28,6 +26,10 @@ async function readConfig(path: string): Promise<Record<string, unknown>> {
   globalConfigPath: string;
   localManifestPath: string;
   globalManifestPath: string;
+}
+
+async function readConfig(path: string): Promise<Record<string, unknown>> {
+  return JSON.parse(await readFile(path, "utf-8")) as Record<string, unknown>;
 }
 
 async function makeSandbox(): Promise<Sandbox> {
@@ -141,6 +143,28 @@ describe("manifest-gated install", () => {
     });
     expect(forced.skipped.length).toBe(0);
     expect(await readFile(skillFile, "utf-8")).not.toBe("consumer edit");
+  });
+
+  test("unreadable manifest refuses to overwrite files unless forced", async () => {
+    await sandbox.installer.install("local", sandbox.projectDir);
+    const skillFile: string = join(sandbox.projectDir, ".opencode", "skills", SKILL_NAMES[0], "SKILL.md");
+    await writeRawConfig(sandbox.localManifestPath, "{ corrupt");
+    await writeFile(skillFile, "consumer edit");
+
+    const refused: Awaited<ReturnType<Installer["install"]>> =
+      await sandbox.installer.install("local", sandbox.projectDir, LOAD_INSTALL_OPTIONS);
+    expect(refused.action).toBe("noop");
+    expect(await readFile(skillFile, "utf-8")).toBe("consumer edit");
+    expect(await readFile(sandbox.localManifestPath, "utf-8")).toBe("{ corrupt");
+
+    const forced = await sandbox.installer.install("local", sandbox.projectDir, {
+      addPluginConfig: false,
+      migrateRootConfig: false,
+      force: true,
+    });
+    expect(forced.action).toBe("installed");
+    expect(await readFile(skillFile, "utf-8")).not.toBe("consumer edit");
+    expect((await readConfig(sandbox.localManifestPath)).version).not.toBeUndefined();
   });
 
   test("retires legacy .version markers on first manifest-era install", async () => {
