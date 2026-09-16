@@ -5,6 +5,15 @@ All notable changes to `aurelia-expert` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-09-16
+
+### Changed
+- **Load-time installation rebuilt to the scope-aware, manifest-gated model.** `plugin.ts#config()` now detects where the plugin is registered — global config, repo `.opencode/opencode.json`, or a repo-root `opencode.json` — using semantic, `@latest`-aware name matching (`RegistrationDetector`, `src/registration.ts`), then ensures the skills only in the detected scope(s). Detection is read-only.
+- **Manifest-gated idempotency shared by the CLI and the load path.** Each install writes `<configBase>/aurelia-expert.manifest.json` with per-file sha256 hashes. Present manifest + matching version + matching hashes → zero-write no-op; version drift → upgrade that scope only; consumer-modified files → skip + warn at load, overwrite only with CLI `--force`. `.version` markers are obsolete and reconciled/removed on first manifest-era install.
+
+### Fixed
+- **Cross-scope leak and dead fast path in the load hook.** The old `ScopeResolver` keyed off the launch directory (which opencode always sets to the consumer repo), and the local fast path checked a marker at `<repo>/skills/…` while the installer wrote to `<repo>/.opencode/skills/…` — so every start reinstalled unconditionally. Hard invariants now enforced and tested: no cross-scope writes, the hook never edits `plugin` arrays, root `opencode.json` migration is CLI-only, unparseable configs abort with a warning and are preserved byte-for-byte (never rewritten from `{}`), and plugin references are written canonically as `aurelia-expert@latest` with semantic dedup.
+
 ## [0.4.0] - 2026-09-07
 
 ### Added

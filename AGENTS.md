@@ -54,7 +54,7 @@
 </channel>
 <channel name="opencode.json">
 <snippet>{"plugin": ["aurelia-expert"]}</snippet>
-<use_case>OpenCode auto-install on next session start; `plugin.ts#config()` runs idempotent install with version marker</use_case>
+<use_case>OpenCode auto-install on next session start; `plugin.ts#config()` runs a scope-aware, manifest-gated install (registration detection is read-only; no cross-scope writes; no `plugin` array edits at load; unparseable configs are preserved)</use_case>
 </channel>
 <file_fallback>
 <snippet>{"plugin": ["file:///absolute/path/to/aurelia-expert"]}</snippet>
