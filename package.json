@@ -1,6 +1,6 @@
 {
   "name": "aurelia-expert",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "type": "module",
   "module": "index.ts",
   "description": "Aurelia v2 MVVM SPA expertise skill package — 8 router-routed skills (expert, foundation, runtime, component-library, largespa, migration, plugin, ecosystem) for AI coding agents",
