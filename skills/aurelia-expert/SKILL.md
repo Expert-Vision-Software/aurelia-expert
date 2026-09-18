@@ -6,7 +6,7 @@ compatibility: opencode, claude-code, and any skill-compatible agent
 metadata:
   area: router
   leading-word: branch
-  ground-truth: https://docs.aurelia.io
+  ground-truth: "https://docs.aurelia.io"
 ---
 
 For SDK and API questions, prefer GitHub (aurelia/aurelia `master` branch) as the canonical source for the latest. Use the DeepWiki MCP server (`deepwiki_ask_question` against `aurelia/aurelia`) when available — it provides AI-grounded answers rooted in current source. Fall back to docs.aurelia.io for overview content only.

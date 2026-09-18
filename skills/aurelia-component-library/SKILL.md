@@ -7,7 +7,7 @@ metadata:
   area: component-library
   sub-areas: tokens, library-layout, component-anatomy, greenfield, migrate
   leading-word: assemble
-  ground-truth: https://docs.aurelia.io
+  ground-truth: "https://docs.aurelia.io"
   requires: aurelia-expert (router)
 ---
 

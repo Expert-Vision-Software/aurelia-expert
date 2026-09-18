@@ -103,7 +103,7 @@ describe("bundled skills", () => {
     if (frontmatter === null) {
       return;
     }
-    expect(frontmatter).toMatch(/ground-truth:\s+https:\/\/docs\.aurelia\.io/);
+    expect(frontmatter).toMatch(/ground-truth:\s+"https:\/\/docs\.aurelia\.io"/);
   });
 
   test("aurelia-largespa declares metadata.focal-point: true", async () => {

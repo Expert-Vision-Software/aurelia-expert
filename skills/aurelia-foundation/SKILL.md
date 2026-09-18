@@ -7,7 +7,7 @@ metadata:
   area: foundation
   sub-areas: philosophy, quickstart, components, lifecycle, ai-tooling, cli
   leading-word: scaffold
-  ground-truth: https://docs.aurelia.io
+  ground-truth: "https://docs.aurelia.io"
 ---
 
 # aurelia-foundation

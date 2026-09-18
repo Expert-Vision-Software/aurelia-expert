@@ -214,11 +214,30 @@ describe("CLI-only behaviors at load", () => {
     expect(root.theme).toBe("root");
   });
 
-  test("CLI install keeps automatic root-config migration", async () => {
+  test("CLI default install does not migrate or delete the root opencode.json", async () => {
     const rootConfig: string = join(sandbox.projectDir, "opencode.json");
     await writeConfig(rootConfig, { theme: "root" });
 
-    const result = await sandbox.installer.install("local", sandbox.projectDir);
+    const result = await sandbox.installer.install("local", sandbox.projectDir, {
+      addPluginConfig: true,
+      migrateRootConfig: false,
+      force: false,
+    });
+
+    expect(result.migrated).toBe(false);
+    expect(await exists(rootConfig)).toBe(true);
+    expect(await exists(sandbox.localConfigPath)).toBe(true);
+  });
+
+  test("CLI --migrate-root-config enables root-config migration", async () => {
+    const rootConfig: string = join(sandbox.projectDir, "opencode.json");
+    await writeConfig(rootConfig, { theme: "root" });
+
+    const result = await sandbox.installer.install("local", sandbox.projectDir, {
+      addPluginConfig: true,
+      migrateRootConfig: true,
+      force: false,
+    });
 
     expect(result.migrated).toBe(true);
     expect(await exists(rootConfig)).toBe(false);

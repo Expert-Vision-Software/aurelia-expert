@@ -8,7 +8,7 @@ metadata:
   sub-areas: feature-first, pages-vs-features, shared, feature-module, hierarchical-agents-md, orchestrator, service-as-store, model-dto, lazy-loading
   leading-word: slice
   focal-point: true
-  ground-truth: https://docs.aurelia.io
+  ground-truth: "https://docs.aurelia.io"
 ---
 
 # Aurelia Large-SPA Structure

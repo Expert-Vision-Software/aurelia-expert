@@ -7,7 +7,7 @@ metadata:
   area: runtime
   sub-areas: di, routing, events-tasks, orchestration
   leading-word: resolve
-  ground-truth: https://docs.aurelia.io
+  ground-truth: "https://docs.aurelia.io"
 ---
 
 # aurelia-runtime

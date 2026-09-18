@@ -7,7 +7,7 @@ metadata:
   area: ecosystem
   sub-areas: ssr, fetch-client, validation, dialog, state, i18n, forms, testing
   leading-word: wire
-  ground-truth: https://docs.aurelia.io
+  ground-truth: "https://docs.aurelia.io"
 ---
 
 # Aurelia Ecosystem — First-Party Plugins, SSR, Testing, Forms

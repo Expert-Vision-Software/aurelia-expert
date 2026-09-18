@@ -7,7 +7,7 @@ metadata:
   area: plugin
   sub-areas: plugin-anatomy, configuration, resources, distribution, extract
   leading-word: package
-  ground-truth: https://docs.aurelia.io
+  ground-truth: "https://docs.aurelia.io"
   requires: aurelia-expert (router)
 ---
 

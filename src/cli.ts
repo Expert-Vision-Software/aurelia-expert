@@ -27,6 +27,11 @@ Commands:
 Options:
   -s, --scope <scope>    Installation scope: "local" (default) or "global"
       --force            Overwrite consumer-modified installed files
+      --migrate-root-config
+                         Migrate a root opencode.json into .opencode/opencode.json
+                         during local install (off by default; opt in explicitly)
+      --no-migrate-root-config
+                         Explicitly keep root-config migration off (default)
   -h, --help             Show this help message
   -v, --version          Show version
 
@@ -43,6 +48,8 @@ async function main(): Promise<void> {
     options: {
       scope: { type: "string", short: "s" },
       force: { type: "boolean", default: false },
+      "migrate-root-config": { type: "boolean", default: false },
+      "no-migrate-root-config": { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
       version: { type: "boolean", short: "v", default: false },
     },
@@ -70,9 +77,11 @@ async function main(): Promise<void> {
 
   const scope: Scope | null = scopeArg === undefined ? null : (scopeArg as Scope);
   const force: boolean = values.force === true;
+  const migrateRootConfig: boolean =
+    values["migrate-root-config"] === true && values["no-migrate-root-config"] !== true;
 
   try {
-    await dispatch(command, scope, force);
+    await dispatch(command, scope, force, migrateRootConfig);
   } catch (error) {
     const message: string = error instanceof Error ? error.message : String(error);
     console.error(`Error: ${message}`);
@@ -80,10 +89,15 @@ async function main(): Promise<void> {
   }
 }
 
-async function dispatch(command: string, scope: Scope | null, force: boolean): Promise<void> {
+async function dispatch(
+  command: string,
+  scope: Scope | null,
+  force: boolean,
+  migrateRootConfig: boolean,
+): Promise<void> {
   switch (command) {
     case "install":
-      await installCommand({ scope, force });
+      await installCommand({ scope, force, migrateRootConfig });
       return;
     case "uninstall":
       await uninstallCommand({ scope });

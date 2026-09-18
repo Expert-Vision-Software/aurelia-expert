@@ -5,6 +5,14 @@ All notable changes to `aurelia-expert` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-09-18
+
+### Changed
+- **Root-config migration is now opt-in.** `bunx aurelia-expert install` no longer migrates a legacy root `opencode.json` to `.opencode/opencode.json` implicitly; pass `--migrate-root-config` to enable it (or `--no-migrate-root-config` to be explicit). Unparseable-config blocking behavior is unchanged.
+
+### Fixed
+- Conformance hardening against the opencode-architect checklist: README badge row completed with Bun runtime and platforms badges; skill frontmatter `ground-truth` URL values double-quoted for full YAML hygiene (descriptions untouched — em-dash separators preserved, colon-space guard intact).
+
 ## [0.5.0] - 2026-09-16
 
 ### Changed

@@ -3,13 +3,14 @@ import { install, type Scope } from "../installer.ts";
 export interface InstallOptions {
   scope: Scope | null;
   force: boolean;
+  migrateRootConfig: boolean;
 }
 
 export async function installCommand(options: InstallOptions): Promise<void> {
   const scope: Scope = options.scope ?? "local";
   const result = await install(scope, process.cwd(), {
     addPluginConfig: true,
-    migrateRootConfig: true,
+    migrateRootConfig: options.migrateRootConfig,
     force: options.force,
   });
 
