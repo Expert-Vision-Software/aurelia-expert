@@ -23,7 +23,7 @@ bun test
 Two suites cover the package:
 
 - `tests/skills.test.ts` — frontmatter validation per skill (name matches folder, description 1–1024 chars, MIT license, compatibility comma-list), `metadata.area` + `metadata.leading-word` present, `metadata.focal-point: true` on `aurelia-largespa`, `metadata.ground-truth: https://docs.aurelia.io` on `aurelia-expert`, every `reference/<file>.md` non-empty, `.opencode/opencode.json` registers skill paths, `package.json#bin["aurelia-expert"]` points at `src/cli.ts`, plugin-name normalization round-trip.
-- `tests/installer.test.ts` — mocked temp project + global dirs; install copies every bundled skill and writes `.version` markers; permission.skill pre-granted; plugin[] contains `aurelia-expert`; idempotent re-install does not duplicate; legacy root `opencode.json` migrates into `.opencode/opencode.json`; uninstall removes skill dirs + plugin entry; status reports install state.
+- `tests/installer.test.ts` — mocked temp project + global dirs; install copies every bundled skill and writes `aurelia-expert.manifest.json` (version + per-file sha256) at the config base; permission.skill pre-granted; plugin[] contains `aurelia-expert`; idempotent re-install does not duplicate; legacy root `opencode.json` migrates into `.opencode/opencode.json`; uninstall removes skill dirs + plugin entry; status reports install state.
 
 ### Type-check
 
@@ -83,7 +83,8 @@ aurelia-expert/
 │   │   └── status.ts
 │   ├── installer.ts          # Installer class — install/uninstall/status
 │   ├── plugin-name.ts        # PluginNameNormalizer class
-│   └── scope-resolver.ts     # ScopeResolver class (cross-platform path)
+│   ├── registration.ts       # RegistrationDetector class (registration detection)
+│   └── manifest.ts           # InstallManifest class (version + per-file sha256 gate)
 ├── tests/
 │   ├── installer.test.ts
 │   └── skills.test.ts
@@ -93,9 +94,9 @@ aurelia-expert/
 ├── CONTRIBUTING.md
 ├── LICENSE
 ├── README.md
-├── index.ts                  # module entry: re-exports plugin.ts
+├── index.ts                  # module entry: one-line re-export of plugin.ts
 ├── package.json
-├── plugin.ts                 # plugin entry with config hook (auto-install on load)
+├── plugin.ts                 # one-line re-export of src/plugin.ts (the plugin entry with the config hook)
 └── tsconfig.json
 ```
 
@@ -108,11 +109,11 @@ aurelia-expert/
 - **Local** (default): copies to `{project}/.opencode/skills/{aurelia-expert,aurelia-foundation,aurelia-runtime,aurelia-component-library,aurelia-largespa,aurelia-migration,aurelia-plugin,aurelia-ecosystem}/` and updates `{project}/.opencode/opencode.json`.
 - **Global**: copies to `~/.config/opencode/skills/{aurelia-expert,...}/` and updates `~/.config/opencode/opencode.json`.
 
-It also pre-grants `permission.skill: "allow"` for all eight skills and writes a `.version` marker under `skills/aurelia-expert/` to skip re-install on subsequent loads.
+It also pre-grants `permission.skill: "allow"` for all eight skills and writes an install manifest at `<configBase>/aurelia-expert.manifest.json` — carrying the package version plus a per-file sha256 of everything it copied — which gates re-install on subsequent loads.
 
 ### Plugin auto-install
 
-When OpenCode loads the package via `opencode.json` plugins array, `plugin.ts` runs the same (local) install logic with a version-marker check — so the package auto-installs skills on first use if not already installed. The check uses `ScopeResolver.resolve(directory, globalConfigPath)` so the plugin auto-installs at the correct scope when running from `~/.config/opencode/`.
+When OpenCode loads the package via `opencode.json` plugins array, `src/plugin.ts` runs the same (local) install logic, gated by the install manifest — so the package auto-installs skills on first use if not already installed. Whether an install is needed is decided by `RegistrationDetector`, which checks (read-only) the global config, the repo's `.opencode/opencode.json`, and a repo-root `opencode.json`; it never writes across scopes.
 
 ### CLI commands
 
@@ -125,7 +126,7 @@ When OpenCode loads the package via `opencode.json` plugins array, `plugin.ts` r
 | `bunx aurelia-expert --help` | Show help |
 | `bunx aurelia-expert --version` | Show version |
 
-`index.ts` is the module entry, a one-line re-export of `plugin.ts`. `src/cli.ts` is the binary entry exposed via `package.json#bin`.
+`index.ts` is the module entry, a one-line re-export of root `plugin.ts`, which is itself a one-line re-export of `src/plugin.ts` — the plugin entry carrying the config hook (auto-install on load). `src/cli.ts` is the binary entry exposed via `package.json#bin`.
 
 ### Install via file:// reference
 

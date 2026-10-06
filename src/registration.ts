@@ -3,22 +3,33 @@ import {
   getGlobalConfigPath,
   getLocalConfigPath,
   getPackageName,
-  isPluginInConfig,
   isScopeInstalled,
+  pluginRegistrationForBase,
+  type PluginRegistration,
   type Scope,
 } from "./installer.ts";
 
-export type RegistrationContext = "none" | "global" | "repo-local" | "both";
+export type RegistrationContext = "none" | "unknown" | "global" | "repo-local" | "both";
 
 export class RegistrationDetector {
   static async detect(directory: string): Promise<RegistrationContext> {
     const packageName: string = await getPackageName();
-    const globalRegistered: boolean = await isPluginInConfig(
-      join(getGlobalConfigPath(), "opencode.json"),
+    const globalRegistration: PluginRegistration = await pluginRegistrationForBase(
+      getGlobalConfigPath(),
       packageName,
     );
-    const repoLocalRegistered: boolean = await RegistrationDetector.isRegisteredInRepo(directory, packageName);
-
+    if (globalRegistration === "unknown") {
+      return "unknown";
+    }
+    const repoRegistration: PluginRegistration = await RegistrationDetector.repoRegistration(
+      directory,
+      packageName,
+    );
+    if (repoRegistration === "unknown") {
+      return "unknown";
+    }
+    const globalRegistered: boolean = globalRegistration === "registered";
+    const repoLocalRegistered: boolean = repoRegistration === "registered";
     if (globalRegistered && repoLocalRegistered) {
       return "both";
     }
@@ -52,12 +63,24 @@ export class RegistrationDetector {
     return isScopeInstalled(getLocalConfigPath(directory));
   }
 
-  private static async isRegisteredInRepo(directory: string, packageName: string): Promise<boolean> {
-    const nestedConfigPath: string = join(getLocalConfigPath(directory), "opencode.json");
-    if (await isPluginInConfig(nestedConfigPath, packageName)) {
-      return true;
+  private static async repoRegistration(directory: string, packageName: string): Promise<PluginRegistration> {
+    const nestedRegistration: PluginRegistration = await pluginRegistrationForBase(
+      getLocalConfigPath(directory),
+      packageName,
+    );
+    if (nestedRegistration === "unknown") {
+      return "unknown";
     }
-    const rootConfigPath: string = join(directory, "opencode.json");
-    return isPluginInConfig(rootConfigPath, packageName);
+    if (nestedRegistration === "registered") {
+      return "registered";
+    }
+    const rootRegistration: PluginRegistration = await pluginRegistrationForBase(directory, packageName);
+    if (rootRegistration === "unknown") {
+      return "unknown";
+    }
+    if (rootRegistration === "registered") {
+      return "registered";
+    }
+    return "unregistered";
   }
 }

@@ -18,6 +18,16 @@ const SKILL_NAMES: readonly string[] = [
   "aurelia-plugin",
   "aurelia-ecosystem",
 ] as const;
+const LEADING_WORDS: Record<string, string> = {
+  "aurelia-expert": "branch",
+  "aurelia-foundation": "scaffold",
+  "aurelia-runtime": "resolve",
+  "aurelia-largespa": "slice",
+  "aurelia-migration": "lift",
+  "aurelia-component-library": "assemble",
+  "aurelia-plugin": "package",
+  "aurelia-ecosystem": "wire",
+};
 const DESCRIPTION_MAX: number = 1024;
 const FRONTMATTER_PATTERN: RegExp = /^---\n([\s\S]*?)\n---/;
 
@@ -32,12 +42,20 @@ function extractFrontmatter(content: string): string | null {
 }
 
 function readFrontmatterField(frontmatter: string, field: string): string | null {
-  const pattern: RegExp = new RegExp(`^${field}:\\s*(.+)$`, "m");
+  const pattern: RegExp = new RegExp(`^\\s*${field}:\\s*(.+)$`, "m");
   const match: RegExpMatchArray | null = frontmatter.match(pattern);
   if (match === null || match[1] === undefined) {
     return null;
   }
   return match[1].trim();
+}
+
+function isDoubleQuoted(value: string): boolean {
+  return value.startsWith('"') && value.endsWith('"') && value.length >= 2;
+}
+
+function unquote(value: string): string {
+  return isDoubleQuoted(value) ? value.slice(1, -1) : value;
 }
 
 describe("bundled skills", () => {
@@ -51,22 +69,30 @@ describe("bundled skills", () => {
       }
 
       const skillName: string | null = readFrontmatterField(frontmatter, "name");
-      expect(skillName).toBe(name);
+      expect(skillName).not.toBeNull();
+      expect(isDoubleQuoted(skillName ?? "")).toBe(true);
+      expect(unquote(skillName ?? "")).toBe(name);
 
       const description: string | null = readFrontmatterField(frontmatter, "description");
       expect(description).not.toBeNull();
       if (description === null) {
         return;
       }
-      expect(description.length).toBeGreaterThan(0);
-      expect(description.length).toBeLessThanOrEqual(DESCRIPTION_MAX);
+      expect(isDoubleQuoted(description)).toBe(true);
+      const unquotedDescription: string = unquote(description);
+      expect(unquotedDescription.length).toBeGreaterThan(0);
+      expect(unquotedDescription.length).toBeLessThanOrEqual(DESCRIPTION_MAX);
+      expect(unquotedDescription.toLowerCase()).toContain(LEADING_WORDS[name]);
 
       const license: string | null = readFrontmatterField(frontmatter, "license");
-      expect(license).toBe("MIT");
+      expect(license).not.toBeNull();
+      expect(isDoubleQuoted(license ?? "")).toBe(true);
+      expect(unquote(license ?? "")).toBe("MIT");
 
       const compatibility: string | null = readFrontmatterField(frontmatter, "compatibility");
       expect(compatibility).not.toBeNull();
-      expect(compatibility?.includes(",")).toBe(true);
+      expect(isDoubleQuoted(compatibility ?? "")).toBe(true);
+      expect(unquote(compatibility ?? "")).toContain(",");
     });
 
     test(`${name} frontmatter parses as valid YAML with string name and description`, async () => {
@@ -91,8 +117,27 @@ describe("bundled skills", () => {
         return;
       }
       expect(frontmatter).toMatch(/^metadata:\s*$/m);
-      expect(frontmatter).toMatch(/^\s+area:\s+\S+\s*$/m);
-      expect(frontmatter).toMatch(/^\s+leading-word:\s+\S+\s*$/m);
+      expect(frontmatter).toMatch(/^\s+area:\s+"[^"]+"\s*$/m);
+      const leadingWord: string | null = readFrontmatterField(frontmatter, "leading-word");
+      expect(leadingWord).not.toBeNull();
+      expect(isDoubleQuoted(leadingWord ?? "")).toBe(true);
+      expect(unquote(leadingWord ?? "")).toBe(LEADING_WORDS[name]);
+    });
+
+    test(`${name} frontmatter scalar values contain no colon-space after unquoting`, async () => {
+      const content: string = await loadSkillFile(name, "SKILL.md");
+      const frontmatter: string | null = extractFrontmatter(content);
+      expect(frontmatter).not.toBeNull();
+      if (frontmatter === null) {
+        return;
+      }
+      for (const field of ["name", "description", "license", "compatibility", "area", "leading-word"]) {
+        const raw: string | null = readFrontmatterField(frontmatter, field);
+        if (raw === null) {
+          continue;
+        }
+        expect(unquote(raw)).not.toContain(": ");
+      }
     });
   }
 

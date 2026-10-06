@@ -1,14 +1,14 @@
 ---
-name: aurelia-component-library
-description: Assemble a styled, variable-driven component library on Aurelia v2 + Tailwind — either deploy the canonical structure into a new app or extract existing components into a shared UI kit. Covers the design-token layer (CSS custom properties on the root element plus the Tailwind @theme bridge), the shared/components/ui/ library layout with the ui- element prefix, component anatomy (bindable variants, <au-slot> projection in Light DOM, .style property binding), the greenfield deploy procedure, and the migrate-existing procedure. Leading word — assemble.
-license: MIT
-compatibility: opencode, claude-code, and any skill-compatible agent
+name: "aurelia-component-library"
+description: "Assemble a styled, variable-driven component library on Aurelia v2 + Tailwind — either deploy the canonical structure into a new app or extract existing components into a shared UI kit. Covers the design-token layer (CSS custom properties on the root element plus the Tailwind @theme bridge), the shared/components/ui/ library layout with the ui- element prefix, component anatomy (bindable variants, <au-slot> projection in Light DOM, .style property binding), the greenfield deploy procedure, and the migrate-existing procedure. Leading word — assemble."
+license: "MIT"
+compatibility: "opencode, claude-code, and any skill-compatible agent"
 metadata:
-  area: component-library
-  sub-areas: tokens, library-layout, component-anatomy, greenfield, migrate
-  leading-word: assemble
+  area: "component-library"
+  sub-areas: "tokens, library-layout, component-anatomy, greenfield, migrate"
+  leading-word: "assemble"
   ground-truth: "https://docs.aurelia.io"
-  requires: aurelia-expert (router)
+  requires: "aurelia-expert (router)"
 ---
 
 # aurelia-component-library

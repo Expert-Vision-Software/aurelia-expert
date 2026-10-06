@@ -5,6 +5,25 @@ All notable changes to `aurelia-expert` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-10-05
+
+### Changed
+- **Surgical config writes.** `writeJsonConfig` no longer parses-and-reserializes consumer configs. A new `ConfigSpliceWriter` (+ `JsoncScanner`) splices only the missing `plugin` entries / `permission.skill` grants into the raw text, preserving comments, indentation, key order, and unrelated bytes; ambiguous or unscannable shapes abort with a warning instead of rewriting. Handles `opencode.jsonc` end to end.
+- **jsonc-aware scope detection.** Registration detection now reads `opencode.json` and `opencode.jsonc` (global config, repo `.opencode/`, repo root). An existing-but-unparseable candidate yields an `unknown` context that short-circuits the load path with zero writes and a warning, instead of being silently treated as unregistered.
+- **Permission writes are CLI-only.** The load path never writes `permission.skill` grants anymore; `ensureSkillPermissions` runs only on explicit `bunx aurelia-expert install`.
+- **Deployment plan declared.** `package.json` now carries `"content": "code"`. `bunx aurelia-expert install --mode copy` raises `CopyModeUnsupportedError` — code-backed packages register only; `--mode register` remains the default.
+- **Hook implementation moved under `src/`.** Root `plugin.ts` is now a one-line re-export of `src/plugin.ts`; all code lives under `src/`.
+- **Release workflow verifies the tarball.** The publish job runs `npm pack --dry-run` and asserts the expected file set (index.ts, plugin.ts, src, skills, README.md, AGENTS.md, CHANGELOG.md, LICENSE) before `npm publish`.
+
+### Fixed
+- **The load hook can no longer throw into OpenCode startup.** The entire `config()` body is wrapped; a failure emits a remediation advisory (`bunx aurelia-expert install --scope global|local`, the exact `~/.cache/opencode/packages/aurelia-expert@<version>` dir, and `bunx aurelia-expert clear-cache`) guarded by its own once-guard, independent of the install advisory.
+- **Missing bundled assets fail loudly and completely.** A missing skill directory raises `MissingSkillAssetError` naming the package version, the missing path, the cache directory, and the remediation commands, instead of a raw `ENOENT`.
+- **Cache hygiene.** New `bunx aurelia-expert clear-cache` subcommand removes this package's current and stale `@<version>` cache directories.
+- **README badge row** collapsed to a single line directly below the heading; all eight SKILL.md frontmatter values are now double-quoted (colon-space guard and dispatch keys intact); CONTRIBUTING.md rewritten for the manifest-gated / `RegistrationDetector` era.
+
+### Added
+- Contract tests for the new guarantees: jsonc detection and comment-preserving splices, byte-preservation of unrelated config bytes, unknown-config zero-writes, loud asset-absence errors, load-path no-writes (plugin arrays and permissions), hook never throwing with exactly-once advisories, `--mode copy` rejection, and `clear-cache` behavior.
+
 ## [0.5.2] - 2026-09-18
 
 ### Changed

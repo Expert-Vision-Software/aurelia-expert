@@ -1,11 +1,11 @@
 ---
-name: aurelia-expert
-description: Use ONLY when working in an Aurelia v2 project — branch picks the right pillar skill for scaffold, resolve, assemble, slice, lift, package, or wire questions on Aurelia 2.x MVVM SPAs. Use when starting an Aurelia app, choosing between Aurelia skills, structuring a large SPA, dependency injection, routing, migration from v1, debugging, performance, building a component library, packaging a plugin, wiring first-party plugins (fetch-client, validation, dialog, state, i18n), forms, testing, SSR/prerendering, or AI-assisted Aurelia scaffolding. Front-loads the leading word "branch".
-license: MIT
-compatibility: opencode, claude-code, and any skill-compatible agent
+name: "aurelia-expert"
+description: "Use ONLY when working in an Aurelia v2 project — branch picks the right pillar skill for scaffold, resolve, assemble, slice, lift, package, or wire questions on Aurelia 2.x MVVM SPAs. Use when starting an Aurelia app, choosing between Aurelia skills, structuring a large SPA, dependency injection, routing, migration from v1, debugging, performance, building a component library, packaging a plugin, wiring first-party plugins (fetch-client, validation, dialog, state, i18n), forms, testing, SSR/prerendering, or AI-assisted Aurelia scaffolding. Front-loads the leading word \"branch\"."
+license: "MIT"
+compatibility: "opencode, claude-code, and any skill-compatible agent"
 metadata:
-  area: router
-  leading-word: branch
+  area: "router"
+  leading-word: "branch"
   ground-truth: "https://docs.aurelia.io"
 ---
 

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { exists, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,7 +8,12 @@ import {
   installManifestPath,
   type Scope,
 } from "../src/installer.ts";
-import { RegistrationDetector } from "../src/registration.ts";
+import { RegistrationDetector, type RegistrationContext } from "../src/registration.ts";
+import { JsoncScanner } from "../src/jsonc-scanner.ts";
+import { MissingSkillAssetError } from "../src/missing-skill-asset-error.ts";
+import { CopyModeUnsupportedError } from "../src/copy-mode-unsupported-error.ts";
+import { installCommand } from "../src/commands/install.ts";
+import * as realOs from "node:os";
 
 const PACKAGE_ROOT: string = join(import.meta.dir, "..");
 const SKILL_NAMES: readonly string[] = Installer.skillNames();
@@ -448,5 +453,275 @@ describe("scope typing sanity", () => {
   test("scope union is global-first and exhaustive", () => {
     const scopes: readonly Scope[] = ["global", "local"];
     expect(scopes.length).toBe(2);
+  });
+});
+
+function captureConsoleWarn(): { warnings: string[]; restore: () => void } {
+  const warnings: string[] = [];
+  const original = console.warn;
+  console.warn = (...args: unknown[]) => {
+    warnings.push(args.map(String).join(" "));
+  };
+  return { warnings, restore: () => { console.warn = original; } };
+}
+
+describe("jsonc config detection and splicing", () => {
+  let sandbox: Sandbox;
+
+  beforeEach(async () => {
+    sandbox = await makeSandbox();
+  });
+
+  afterEach(async () => {
+    await cleanupSandbox(sandbox);
+  });
+
+  test("plugin registered in .opencode/opencode.jsonc with comments and trailing comma is detected", async () => {
+    const jsoncPath: string = join(sandbox.projectDir, ".opencode", "opencode.jsonc");
+    await writeRawConfig(
+      jsoncPath,
+      [
+        "{",
+        "  // editor theme chosen by the team",
+        '  "theme": "dark",',
+        '  "plugin": [',
+        '    "some-other-pkg",',
+        '    "aurelia-expert@latest",',
+        "  ],",
+        "}",
+        "",
+      ].join("\n"),
+    );
+
+    const registration = await Installer.pluginRegistrationForBase(
+      sandbox.installer.getLocalConfigPath(sandbox.projectDir),
+      "aurelia-expert",
+    );
+    expect(registration).toBe("registered");
+
+    const context = await RegistrationDetector.detect(sandbox.projectDir);
+    expect(context).toBe("repo-local");
+  });
+
+  test("splicing aurelia-expert into a jsonc config preserves comments byte-wise around the splice", async () => {
+    const jsoncPath: string = join(sandbox.projectDir, ".opencode", "opencode.jsonc");
+    const before: string = [
+      "{",
+      "  // editor theme chosen by the team",
+      '  "theme": "dark",',
+      '  "plugin": [ "some-other-pkg" ], // plugin list',
+      '  "permission": { "skill": { "aurelia-expert": "allow" } }',
+      "}",
+      "",
+    ].join("\n");
+    await writeRawConfig(jsoncPath, before);
+
+    await sandbox.installer.install("local", sandbox.projectDir, {
+      addPluginConfig: true,
+      migrateRootConfig: false,
+      force: false,
+    });
+
+    const after: string = await readFile(jsoncPath, "utf-8");
+    expect(after).toContain("// editor theme chosen by the team");
+    expect(after).toContain("// plugin list");
+    expect(after).toContain('"theme": "dark"');
+    expect(after).toContain('"some-other-pkg"');
+
+    const parsed: unknown | null = JsoncScanner.parseLenient(after);
+    expect(parsed).not.toBeNull();
+    const config = parsed as Record<string, unknown>;
+    expect(config.theme).toBe("dark");
+    expect(config.plugin).toEqual(["some-other-pkg", "aurelia-expert@latest"]);
+    const permission = config.permission as { skill: Record<string, string> };
+    for (const name of SKILL_NAMES) {
+      expect(permission.skill[name]).toBe("allow");
+    }
+  });
+
+  test("spliced bytes outside the inserted spans are unchanged (1-space indent, inline object)", async () => {
+    const configPath: string = join(sandbox.projectDir, ".opencode", "opencode.json");
+    const remainingSkills: readonly string[] = SKILL_NAMES.filter(name => name !== "aurelia-expert");
+    const appendedPermissions: string = remainingSkills
+      .map(name => `"${name}": "allow"`)
+      .join(", ");
+    const before: string = [
+      "{",
+      ' "theme": "dark",',
+      ' "plugin": [ "some-other-pkg" ],',
+      ' "permission": { "skill": { "aurelia-expert": "allow" } }',
+      "}",
+      "",
+    ].join("\n");
+    const expected: string = before
+      .replace(
+        '[ "some-other-pkg" ],',
+        '[ "some-other-pkg", "aurelia-expert@latest" ],',
+      )
+      .replace(
+        '{ "aurelia-expert": "allow" }',
+        `{ "aurelia-expert": "allow", ${appendedPermissions} }`,
+      );
+    await writeRawConfig(configPath, before);
+
+    await sandbox.installer.install("local", sandbox.projectDir, {
+      addPluginConfig: true,
+      migrateRootConfig: false,
+      force: false,
+    });
+
+    const after: string = await readFile(configPath, "utf-8");
+    expect(after).toBe(expected);
+  });
+});
+
+describe("unparseable candidate configs", () => {
+  let sandbox: Sandbox;
+
+  beforeEach(async () => {
+    sandbox = await makeSandbox();
+  });
+
+  afterEach(async () => {
+    await cleanupSandbox(sandbox);
+  });
+
+  test("unparseable repo config yields unknown context, zero writes, and a warning", async () => {
+    const garbage: string = "{ not json !!!";
+    await writeRawConfig(sandbox.localConfigPath, garbage);
+    const capture = captureConsoleWarn();
+
+    let context: RegistrationContext | null = null;
+    try {
+      context = await RegistrationDetector.detect(sandbox.projectDir);
+    } finally {
+      capture.restore();
+    }
+
+    expect(context).toBe("unknown");
+    expect(RegistrationDetector.scopesToEnsure(context)).toEqual([]);
+    expect(capture.warnings.some(w => w.includes(sandbox.localConfigPath) && w.includes("unknown"))).toBe(true);
+    expect(await readFile(sandbox.localConfigPath, "utf-8")).toBe(garbage);
+    expect(await exists(sandbox.localManifestPath)).toBe(false);
+    expect(await exists(join(sandbox.projectDir, ".opencode", "skills"))).toBe(false);
+  });
+});
+
+describe("missing bundled skill assets", () => {
+  test("install from a package dir without skills throws MissingSkillAssetError with remediation", async () => {
+    const sandbox = await makeSandbox();
+    try {
+      const brokenPackageDir: string = join(sandbox.projectDir, "broken-package");
+      await mkdir(brokenPackageDir, { recursive: true });
+      await writeRawConfig(join(brokenPackageDir, "package.json"), '{"name":"aurelia-expert","version":"9.9.9"}');
+
+      const broken = new Installer(brokenPackageDir);
+
+      let thrown: unknown = null;
+      try {
+        await broken.install("local", sandbox.projectDir);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(MissingSkillAssetError);
+      const message: string = thrown instanceof Error ? thrown.message : "";
+      expect(message).toContain("aurelia-expert@9.9.9");
+      expect(message).toContain(join(brokenPackageDir, "skills", "aurelia-expert"));
+      expect(message).toContain(join("aurelia-expert@9.9.9"));
+      expect(message).toContain("clear-cache");
+      expect(message).toContain("install --scope global");
+    } finally {
+      await cleanupSandbox(sandbox);
+    }
+  });
+});
+
+describe("load-path write suppression", () => {
+  let sandbox: Sandbox;
+
+  beforeEach(async () => {
+    sandbox = await makeSandbox();
+  });
+
+  afterEach(async () => {
+    await cleanupSandbox(sandbox);
+  });
+
+  test("load options write skills but never permissions or plugin entries", async () => {
+    const configText: string = JSON.stringify({ theme: "dark" }, null, 2) + "\n";
+    await writeRawConfig(sandbox.localConfigPath, configText);
+
+    const result = await sandbox.installer.install("local", sandbox.projectDir, LOAD_INSTALL_OPTIONS);
+
+    expect(result.action).toBe("installed");
+    expect(result.permissionConfigured).toBe(false);
+    expect(result.pluginAdded).toBe(false);
+    expect(await readFile(sandbox.localConfigPath, "utf-8")).toBe(configText);
+    const config: Record<string, unknown> = await readConfig(sandbox.localConfigPath);
+    expect(config.permission).toBeUndefined();
+    expect(config.plugin).toBeUndefined();
+  });
+
+  test("load options leave permissions untouched when files change and trigger an upgrade", async () => {
+    await sandbox.installer.install("local", sandbox.projectDir);
+    const configBefore: string = await readFile(sandbox.localConfigPath, "utf-8");
+    const skillFile: string = join(sandbox.projectDir, ".opencode", "skills", SKILL_NAMES[0], "SKILL.md");
+    await writeFile(skillFile, "consumer edit");
+    const manifest: Record<string, unknown> = await readConfig(sandbox.localManifestPath);
+    manifest.version = "0.0.1";
+    await writeFile(sandbox.localManifestPath, JSON.stringify(manifest, null, 2));
+
+    const result = await sandbox.installer.install("local", sandbox.projectDir, LOAD_INSTALL_OPTIONS);
+
+    expect(result.action).toBe("upgraded");
+    expect(result.permissionConfigured).toBe(false);
+    expect(result.pluginAdded).toBe(false);
+    expect(await readFile(sandbox.localConfigPath, "utf-8")).toBe(configBefore);
+  });
+});
+
+describe("copy mode and cache clearing", () => {
+  test("--mode copy rejects with CopyModeUnsupportedError before touching the filesystem", async () => {
+    let thrown: unknown = null;
+    try {
+      await installCommand({ scope: null, force: false, migrateRootConfig: false, mode: "copy" });
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(CopyModeUnsupportedError);
+    expect((thrown as Error).message).toContain("--mode copy");
+  });
+
+  test("clear-cache removes current-version and @latest cache dirs, keeps stale versions", async () => {
+    const fakeHome: string = await mkdtemp(join(tmpdir(), "aurelia-test-home-"));
+    mock.module("node:os", () => ({ ...realOs, homedir: () => fakeHome }));
+    try {
+      const { PackageCacheCleaner } = await import("../src/package-cache-cleaner.ts");
+      const packagesDir: string = join(fakeHome, ".cache", "opencode", "packages");
+      const version: string = JSON.parse(await readFile(join(PACKAGE_ROOT, "package.json"), "utf-8")).version;
+      const currentDir: string = join(packagesDir, `aurelia-expert@${version}`);
+      const latestDir: string = join(packagesDir, "aurelia-expert@latest");
+      const staleDir: string = join(packagesDir, "aurelia-expert@0.0.1");
+      const foreignDir: string = join(packagesDir, "other-pkg@latest");
+      for (const dir of [currentDir, latestDir, staleDir, foreignDir]) {
+        await mkdir(join(dir, "node_modules"), { recursive: true });
+        await writeFile(join(dir, "package.json"), "{}");
+      }
+
+      const cleaner = new PackageCacheCleaner();
+      const result = await cleaner.clear();
+
+      expect(result.removedDirs).toContain(currentDir);
+      expect(result.removedDirs).toContain(latestDir);
+      expect(result.removedDirs.length).toBe(2);
+      expect(await exists(currentDir)).toBe(false);
+      expect(await exists(latestDir)).toBe(false);
+      expect(await exists(staleDir)).toBe(true);
+      expect(await exists(foreignDir)).toBe(true);
+    } finally {
+      mock.module("node:os", () => realOs);
+      await rm(fakeHome, { recursive: true, force: true });
+    }
   });
 });

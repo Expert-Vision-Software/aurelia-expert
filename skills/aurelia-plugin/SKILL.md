@@ -1,14 +1,14 @@
 ---
-name: aurelia-plugin
-description: Package a distributable Aurelia v2 plugin — author the register(container) entry point, the .customize() options pattern with DI.createInterface tokens, global resource registration, AppTask lifecycle hooks, and the rendering-pipeline extensions (IRenderer, IRendering, registerHostNode). Use when creating a plugin from scratch, turning a component library, feature slice, or shared directory into a standalone npm package, wiring peerDependencies and dual ESM/CJS builds, or shipping templates/styles with explicit ?raw imports. Leading word — package.
-license: MIT
-compatibility: opencode, claude-code, and any skill-compatible agent
+name: "aurelia-plugin"
+description: "Package a distributable Aurelia v2 plugin — author the register(container) entry point, the .customize() options pattern with DI.createInterface tokens, global resource registration, AppTask lifecycle hooks, and the rendering-pipeline extensions (IRenderer, IRendering, registerHostNode). Use when creating a plugin from scratch, turning a component library, feature slice, or shared directory into a standalone npm package, wiring peerDependencies and dual ESM/CJS builds, or shipping templates/styles with explicit ?raw imports. Leading word — package."
+license: "MIT"
+compatibility: "opencode, claude-code, and any skill-compatible agent"
 metadata:
-  area: plugin
-  sub-areas: plugin-anatomy, configuration, resources, distribution, extract
-  leading-word: package
+  area: "plugin"
+  sub-areas: "plugin-anatomy, configuration, resources, distribution, extract"
+  leading-word: "package"
   ground-truth: "https://docs.aurelia.io"
-  requires: aurelia-expert (router)
+  requires: "aurelia-expert (router)"
 ---
 
 # aurelia-plugin

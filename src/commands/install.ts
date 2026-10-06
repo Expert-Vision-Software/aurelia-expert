@@ -1,12 +1,17 @@
 import { install, type Scope } from "../installer.ts";
+import { CopyModeUnsupportedError } from "../copy-mode-unsupported-error.ts";
 
 export interface InstallOptions {
   scope: Scope | null;
   force: boolean;
   migrateRootConfig: boolean;
+  mode: string | null;
 }
 
 export async function installCommand(options: InstallOptions): Promise<void> {
+  if (options.mode === "copy") {
+    throw new CopyModeUnsupportedError();
+  }
   const scope: Scope = options.scope ?? "local";
   const result = await install(scope, process.cwd(), {
     addPluginConfig: true,

@@ -111,6 +111,18 @@ jobs:
           bun run check
           bun test
 
+      - name: Verify tarball contents
+        run: |
+          npm pack --dry-run
+          TAR=$(npm pack --dry-run --json | node -e "
+            const fs = require('fs');
+            const data = JSON.parse(fs.readFileSync(0, 'utf8'));
+            for (const f of data[0].files) console.log(f.path);
+          ")
+          for expected in index.ts plugin.ts src skills README.md AGENTS.md CHANGELOG.md LICENSE; do
+            echo "$TAR" | grep -q "^${expected}" || { echo "Missing expected content in tarball: ${expected}"; exit 1; }
+          done
+
       - name: Publish to npm
         run: |
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
