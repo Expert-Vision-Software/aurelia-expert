@@ -6,6 +6,7 @@ import {
   Installer,
   LOAD_INSTALL_OPTIONS,
   installManifestPath,
+  type PermissionRule,
   type Scope,
 } from "../src/installer.ts";
 import { RegistrationDetector } from "../src/registration.ts";
@@ -26,12 +27,6 @@ interface Sandbox {
   globalConfigPath: string;
   localManifestPath: string;
   globalManifestPath: string;
-}
-
-interface PermissionRule {
-  action: string;
-  resource: string;
-  effect: string;
 }
 
 async function readConfig(path: string): Promise<Record<string, unknown>> {
@@ -386,6 +381,20 @@ describe("v2 plugins array and legacy plugin key", () => {
     const config: Record<string, unknown> = await readConfig(sandbox.localConfigPath);
     expect(config.plugins).toEqual(["other-pkg", "aurelia-expert@latest"]);
     expect(config.plugin).toEqual(["aurelia-expert"]);
+  });
+
+  test("malformed plugins key falls back to legacy detection instead of a false not-registered", async () => {
+    await writeConfig(sandbox.localConfigPath, {
+      plugins: { broken: true },
+      plugin: ["aurelia-expert"],
+    });
+
+    const result = await sandbox.installer.install("local", sandbox.projectDir);
+
+    expect(result.pluginAdded).toBe(false);
+    const config: Record<string, unknown> = await readConfig(sandbox.localConfigPath);
+    expect(config.plugin).toEqual(["aurelia-expert"]);
+    expect(config.plugins).toEqual({ broken: true });
   });
 
   test("non-array plugins key is refused and the file stays byte-for-byte", async () => {

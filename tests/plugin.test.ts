@@ -96,16 +96,22 @@ describe("install on load", () => {
     expect(await exists(installManifestPath(sandbox.localBase, "aurelia-expert"))).toBe(true);
   });
 
-  test("emits the install advisory at most once and performs no writes when nothing is installed", async () => {
+  test("emits the install advisory at most once per directory and performs no writes when nothing is installed", async () => {
     const spy = spyOn(console, "warn");
     try {
       await runLoad(sandbox.projectDir);
       await runLoad(sandbox.projectDir);
+      const secondDir: string = await mkdtemp(join(tmpdir(), "aurelia-plugin-second-"));
+      try {
+        await runLoad(secondDir);
+      } finally {
+        await rm(secondDir, { recursive: true, force: true });
+      }
 
       const advisories: string[] = warnMessages(spy).filter(message =>
         message.includes("aurelia-expert is not installed in any scope"),
       );
-      expect(advisories.length).toBe(1);
+      expect(advisories.length).toBe(2);
       expect(await exists(join(sandbox.localBase, "skills"))).toBe(false);
       expect(await exists(join(sandbox.globalBase, "skills"))).toBe(false);
     } finally {
