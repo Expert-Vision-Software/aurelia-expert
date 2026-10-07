@@ -1,13 +1,9 @@
 import { copyFile, exists, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import type { Dirent } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PluginNameNormalizer } from "./plugin-name.ts";
 import { InstallManifest, installManifestPath, type ManifestFileEntry } from "./manifest.ts";
-import { ConfigSpliceWriter, type SpliceResult } from "./config-splice-writer.ts";
-import { JsoncScanner } from "./jsonc-scanner.ts";
-import { MissingSkillAssetError } from "./missing-skill-asset-error.ts";
 
 export { installManifestPath };
 
@@ -17,7 +13,6 @@ export interface InstallOptions {
   addPluginConfig: boolean;
   migrateRootConfig: boolean;
   force: boolean;
-  writePermissions?: boolean;
 }
 
 export type InstallAction = "installed" | "upgraded" | "noop";
@@ -52,7 +47,11 @@ export interface StatusResult {
   global: ScopeStatus | null;
 }
 
-export type PluginRegistration = "registered" | "unregistered" | "unknown";
+interface PermissionRule {
+  action: string;
+  resource: string;
+  effect: string;
+}
 
 const SKILL_NAMES: readonly string[] = [
   "aurelia-expert",
@@ -67,8 +66,6 @@ const SKILL_NAMES: readonly string[] = [
 
 const PACKAGE_NAME: string = "aurelia-expert";
 
-const CONFIG_FILE_CANDIDATES: readonly string[] = ["opencode.json", "opencode.jsonc"];
-
 export const DEFAULT_INSTALL_OPTIONS: InstallOptions = {
   addPluginConfig: true,
   migrateRootConfig: true,
@@ -79,18 +76,12 @@ export const LOAD_INSTALL_OPTIONS: InstallOptions = {
   addPluginConfig: false,
   migrateRootConfig: false,
   force: false,
-  writePermissions: false,
 };
 
 interface PlannedSkillFile {
   sourcePath: string;
   relativeDest: string;
 }
-
-type RawConfigRead =
-  | { status: "missing"; raw: null }
-  | { status: "ok"; raw: string }
-  | { status: "unparseable"; raw: string };
 
 export class Installer {
   private readonly packageDir: string;
@@ -108,41 +99,70 @@ export class Installer {
   }
 
   static async isPluginListedIn(configPath: string, packageName: string): Promise<boolean> {
-    const read: RawConfigRead = await Installer.readRawConfig(configPath);
-    if (read.status !== "ok") {
+    const config: Record<string, unknown> | null = await new Installer().readJsonConfig(configPath);
+    if (config === null) {
       return false;
     }
-    const config: unknown | null = JsoncScanner.parseLenient(read.raw);
-    if (typeof config !== "object" || config === null || Array.isArray(config)) {
-      return false;
-    }
-    const raw: unknown = (config as Record<string, unknown>).plugin;
-    if (!Array.isArray(raw)) {
-      return false;
-    }
-    return raw.some(entry => typeof entry === "string" && PluginNameNormalizer.matches(entry, packageName));
+    return Installer.namesInclude(Installer.registeredNames(config), packageName);
   }
 
-  static async pluginRegistrationForBase(configBase: string, packageName: string): Promise<PluginRegistration> {
-    for (const candidate of CONFIG_FILE_CANDIDATES) {
-      const candidatePath: string = join(configBase, candidate);
-      if (!(await exists(candidatePath))) {
-        continue;
-      }
-      const read: RawConfigRead = await Installer.readRawConfig(candidatePath);
-      if (read.status === "unparseable") {
-        console.warn(
-          `[${PACKAGE_NAME}] Config candidate ${candidatePath} exists but cannot be parsed; ` +
-            `treating its registration state as unknown. No writes will target it. ` +
-            `Fix or remove the file, then retry.`,
-        );
-        return "unknown";
-      }
-      if (await Installer.isPluginListedIn(candidatePath, packageName)) {
-        return "registered";
+  private static registeredNames(config: Record<string, unknown>): string[] {
+    const v2: unknown = config.plugins;
+    if (v2 !== undefined) {
+      const entries: unknown[] = Array.isArray(v2) ? v2 : [];
+      return Installer.namesFromEntries(entries);
+    }
+    const legacy: unknown = config.plugin;
+    const entries: unknown[] = Array.isArray(legacy) ? legacy : [];
+    return Installer.namesFromEntries(entries);
+  }
+
+  private static namesFromEntries(entries: readonly unknown[]): string[] {
+    const names: string[] = [];
+    for (const entry of entries) {
+      const name: string | null = Installer.entryName(entry);
+      if (name !== null) {
+        names.push(name);
       }
     }
-    return "unregistered";
+    return names;
+  }
+
+  private static entryName(entry: unknown): string | null {
+    if (typeof entry === "string") {
+      return entry;
+    }
+    if (Installer.isRecord(entry)) {
+      const pkg: unknown = entry.package;
+      if (typeof pkg === "string") {
+        return pkg;
+      }
+    }
+    return null;
+  }
+
+  private static isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+
+  private static namesInclude(names: readonly string[], packageName: string): boolean {
+    for (const name of names) {
+      if (PluginNameNormalizer.matches(name, packageName)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static filterOurEntries(entries: readonly unknown[], packageName: string): unknown[] {
+    const kept: unknown[] = [];
+    for (const entry of entries) {
+      const name: string | null = Installer.entryName(entry);
+      if (name === null || !PluginNameNormalizer.matches(name, packageName)) {
+        kept.push(entry);
+      }
+    }
+    return kept;
   }
 
   static skillNames(): readonly string[] {
@@ -175,7 +195,7 @@ export class Installer {
     const configBase: string = scope === "global"
       ? this.getGlobalConfigPath()
       : this.getLocalConfigPath(projectDir);
-    const configPath: string = await this.resolveConfigPath(configBase);
+    const configPath: string = join(configBase, "opencode.json");
     const manifestPath: string = installManifestPath(configBase, PACKAGE_NAME);
 
     let migrated: boolean = false;
@@ -203,7 +223,7 @@ export class Installer {
       };
     }
     const sameVersion: boolean = manifest.matchesVersion(version);
-    const plannedFiles: PlannedSkillFile[] = await this.collectSkillFiles(version);
+    const plannedFiles: PlannedSkillFile[] = await this.collectSkillFiles();
 
     const writtenRelativePaths: string[] = [];
     const skipped: string[] = [];
@@ -253,7 +273,7 @@ export class Installer {
     }
 
     let permissionConfigured: boolean = false;
-    if (action !== "noop" && (options.writePermissions ?? true)) {
+    if (action !== "noop") {
       permissionConfigured = await this.ensureSkillPermissions(configPath, SKILL_NAMES);
     }
 
@@ -279,7 +299,7 @@ export class Installer {
     const configBase: string = scope === "global"
       ? this.getGlobalConfigPath()
       : this.getLocalConfigPath(projectDir);
-    const configPath: string = await this.resolveConfigPath(configBase);
+    const configPath: string = join(configBase, "opencode.json");
 
     const removed: string[] = [];
     for (const name of SKILL_NAMES) {
@@ -319,16 +339,6 @@ export class Installer {
     return PluginNameNormalizer.normalize(entry);
   }
 
-  private async resolveConfigPath(configBase: string): Promise<string> {
-    for (const candidate of CONFIG_FILE_CANDIDATES) {
-      const candidatePath: string = join(configBase, candidate);
-      if (await exists(candidatePath)) {
-        return candidatePath;
-      }
-    }
-    return join(configBase, CONFIG_FILE_CANDIDATES[0]);
-  }
-
   private async readScopeStatus(configBase: string): Promise<ScopeStatus | null> {
     const manifest: InstallManifest = await InstallManifest.read(installManifestPath(configBase, PACKAGE_NAME));
     const legacySkillDir: string = join(configBase, "skills", SKILL_NAMES[0]);
@@ -338,8 +348,7 @@ export class Installer {
     const version: string | null = manifest.hasContents()
       ? manifest.version
       : await this.readLegacySkillVersion(legacySkillDir);
-    const pluginInConfig: boolean =
-      (await Installer.pluginRegistrationForBase(configBase, PACKAGE_NAME)) === "registered";
+    const pluginInConfig: boolean = await this.isPluginListed(join(configBase, "opencode.json"));
     return { installed: true, version, legacy: !manifest.hasContents(), pluginInConfig };
   }
 
@@ -351,40 +360,22 @@ export class Installer {
     }
   }
 
-  private async collectSkillFiles(version: string): Promise<PlannedSkillFile[]> {
+  private async collectSkillFiles(): Promise<PlannedSkillFile[]> {
     const planned: PlannedSkillFile[] = [];
     for (const name of SKILL_NAMES) {
       const skillSource: string = join(this.packageDir, "skills", name);
-      planned.push(...await Installer.collectNestedFiles(skillSource, join("skills", name), version));
+      planned.push(...await Installer.collectNestedFiles(skillSource, join("skills", name)));
     }
     return planned;
   }
 
-  private static async collectNestedFiles(
-    directory: string,
-    relativeBase: string,
-    version: string,
-  ): Promise<PlannedSkillFile[]> {
-    let entries: Dirent[] | null = null;
-    try {
-      entries = await readdir(directory, { withFileTypes: true });
-    } catch (error) {
-      if (Installer.isFileNotFoundError(error)) {
-        throw new MissingSkillAssetError({
-          packageName: PACKAGE_NAME,
-          version,
-          missingPath: directory,
-          cacheDirectory: join(homedir(), ".cache", "opencode", "packages", `${PACKAGE_NAME}@${version}`),
-        });
-      }
-      throw error;
-    }
+  private static async collectNestedFiles(directory: string, relativeBase: string): Promise<PlannedSkillFile[]> {
     const planned: PlannedSkillFile[] = [];
-    for (const entry of entries) {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
       const nestedSource: string = join(directory, entry.name);
       const nestedDest: string = join(relativeBase, entry.name);
       if (entry.isDirectory()) {
-        planned.push(...await Installer.collectNestedFiles(nestedSource, nestedDest, version));
+        planned.push(...await Installer.collectNestedFiles(nestedSource, nestedDest));
       } else {
         planned.push({ sourcePath: nestedSource, relativeDest: nestedDest });
       }
@@ -428,210 +419,235 @@ export class Installer {
     return (error as NodeJS.ErrnoException).code === "ENOENT";
   }
 
-  private static async readRawConfig(path: string): Promise<RawConfigRead> {
+  private async readJsonConfig(path: string): Promise<Record<string, unknown> | null> {
     let content: string;
     try {
       content = await readFile(path, "utf-8");
     } catch (error) {
       if (Installer.isFileNotFoundError(error)) {
-        return { status: "missing", raw: null };
+        return {};
       }
-      return { status: "unparseable", raw: "" };
+      return null;
     }
-    if (JsoncScanner.parseLenient(content) === null) {
-      return { status: "unparseable", raw: content };
+    try {
+      return JSON.parse(content) as Record<string, unknown>;
+    } catch {
+      return null;
     }
-    return { status: "ok", raw: content };
   }
 
-  private async writeSplicedConfig(path: string, text: string): Promise<void> {
-    await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, text);
-  }
-
-  private static warnRefusedWrite(configPath: string, reason: string): void {
-    console.warn(
-      `[${PACKAGE_NAME}] Refusing to write ${configPath}: ${reason} The file was left unchanged.`,
-    );
+  private async writeJsonConfig(path: string, config: Record<string, unknown>): Promise<void> {
+    await mkdir(join(path, ".."), { recursive: true });
+    await writeFile(path, JSON.stringify(config, null, 2));
   }
 
   private async ensureSkillPermissions(
     configPath: string,
     skillNames: readonly string[],
   ): Promise<boolean> {
-    const read: RawConfigRead = await Installer.readRawConfig(configPath);
-    if (read.status === "unparseable") {
-      Installer.warnRefusedWrite(
-        configPath,
-        "the file exists but is not parseable as JSON/JSONC. Fix or remove the file, then re-run install.",
+    const config: Record<string, unknown> | null = await this.readJsonConfig(configPath);
+    if (config === null) {
+      console.warn(
+        `[${PACKAGE_NAME}] Refusing to write ${configPath}: the file is not valid JSON. ` +
+          `Fix or remove the file, then re-run install. The file was left unchanged.`,
       );
       return false;
     }
-    if (read.status === "missing") {
-      const permissionEntries: Record<string, string> = {};
+    let changed: boolean = false;
+    const raw: unknown = config.permissions;
+    if (raw === undefined) {
+      config.permissions = skillNames.map(name => Installer.skillAllowRule(name));
+      changed = true;
+    } else if (Array.isArray(raw)) {
+      const rules: unknown[] = raw;
       for (const name of skillNames) {
-        permissionEntries[name] = "allow";
+        if (!rules.some(rule => Installer.ruleAllowsSkill(rule, name))) {
+          rules.push(Installer.skillAllowRule(name));
+          changed = true;
+        }
       }
-      await this.writeSplicedConfig(
-        configPath,
-        JSON.stringify({ permission: { skill: permissionEntries } }, null, 2),
-      );
-      return true;
-    }
-    const writer: ConfigSpliceWriter = new ConfigSpliceWriter(read.raw);
-    if (!writer.hasParseableSource()) {
-      Installer.warnRefusedWrite(configPath, "the file exists but is not parseable as JSON/JSONC.");
-      return false;
-    }
-    const result: SpliceResult | null = writer.addSkillPermissions(skillNames);
-    if (result === null) {
-      Installer.warnRefusedWrite(
-        configPath,
-        "the permission structure could not be located reliably in the raw text (it may be minified or use an unexpected shape).",
-      );
-      return false;
-    }
-    if (result.changed) {
-      await this.writeSplicedConfig(configPath, result.text);
-    }
-    return result.changed;
-  }
-
-  private async addPluginIfMissing(configPath: string): Promise<boolean> {
-    const read: RawConfigRead = await Installer.readRawConfig(configPath);
-    if (read.status === "unparseable") {
-      Installer.warnRefusedWrite(
-        configPath,
-        "the file exists but is not parseable as JSON/JSONC. Fix or remove the file, then re-run install.",
-      );
-      return false;
-    }
-    const canonicalEntry: string = PluginNameNormalizer.canonicalize(PACKAGE_NAME);
-    if (read.status === "missing") {
-      await this.writeSplicedConfig(configPath, `{\n  "plugin": [${JSON.stringify(canonicalEntry)}]\n}\n`);
-      return true;
-    }
-    const writer: ConfigSpliceWriter = new ConfigSpliceWriter(read.raw);
-    if (!writer.hasParseableSource()) {
-      Installer.warnRefusedWrite(configPath, "the file exists but is not parseable as JSON/JSONC.");
-      return false;
-    }
-    const result: SpliceResult | null = writer.addPluginEntry(PACKAGE_NAME, canonicalEntry);
-    if (result === null) {
-      Installer.warnRefusedWrite(
-        configPath,
-        "the plugin array could not be located reliably in the raw text (it may be minified or use an unexpected shape).",
-      );
-      return false;
-    }
-    if (result.changed) {
-      await this.writeSplicedConfig(configPath, result.text);
-    }
-    return result.changed;
-  }
-
-  private async removePluginFromConfig(configPath: string): Promise<boolean> {
-    const read: RawConfigRead = await Installer.readRawConfig(configPath);
-    if (read.status !== "ok") {
-      Installer.warnRefusedWrite(configPath, "the file is missing or is not parseable as JSON/JSONC.");
-      return false;
-    }
-    const writer: ConfigSpliceWriter = new ConfigSpliceWriter(read.raw);
-    if (!writer.hasParseableSource()) {
-      Installer.warnRefusedWrite(configPath, "the file is not parseable as JSON/JSONC.");
-      return false;
-    }
-    const result: SpliceResult | null = writer.removePluginEntries(PACKAGE_NAME);
-    if (result === null) {
-      Installer.warnRefusedWrite(
-        configPath,
-        "the plugin array could not be edited reliably in the raw text. Remove the entry manually.",
-      );
-      return false;
-    }
-    if (result.changed) {
-      await this.writeSplicedConfig(configPath, result.text);
-    }
-    return result.changed;
-  }
-
-  private async migrateRootConfig(projectDir: string): Promise<boolean> {
-    const rootConfigPath: string | null = await Installer.firstExisting([
-      join(projectDir, "opencode.json"),
-      join(projectDir, "opencode.jsonc"),
-    ]);
-    if (rootConfigPath === null) {
-      return false;
-    }
-    const dotOpencodeConfigPath: string | null = await Installer.firstExisting([
-      join(projectDir, ".opencode", "opencode.json"),
-      join(projectDir, ".opencode", "opencode.jsonc"),
-    ]);
-    const targetConfigPath: string = dotOpencodeConfigPath ?? join(projectDir, ".opencode", "opencode.json");
-
-    const rootParsed: Record<string, unknown> | null = await Installer.readStrictConfigObject(rootConfigPath);
-    if (rootParsed === null) {
-      Installer.warnRefusedWrite(
-        rootConfigPath,
-        `the file is missing, unparseable, or uses JSONC-only syntax (comments and trailing commas cannot survive ` +
-          `a merge rewrite), so it cannot be migrated into ${targetConfigPath}.`,
-      );
-      return false;
-    }
-
-    let targetParsed: Record<string, unknown> = {};
-    if (dotOpencodeConfigPath !== null) {
-      const targetRead: Record<string, unknown> | null =
-        await Installer.readStrictConfigObject(dotOpencodeConfigPath);
-      if (targetRead === null) {
-        Installer.warnRefusedWrite(
-          rootConfigPath,
-          `${dotOpencodeConfigPath} is missing, unparseable, or uses JSONC-only syntax. Both files were left unchanged.`,
-        );
-        return false;
-      }
-      targetParsed = targetRead;
     } else {
-      await mkdir(join(projectDir, ".opencode"), { recursive: true });
+      console.warn(
+        `[${PACKAGE_NAME}] Refusing to write ${configPath}: "permissions" is present but is not an array. ` +
+          `Fix or remove the file, then re-run install. The file was left unchanged.`,
+      );
+      return false;
     }
-    const merged: Record<string, unknown> = { ...rootParsed, ...targetParsed };
-    await this.writeSplicedConfig(targetConfigPath, JSON.stringify(merged, null, 2));
-    await rm(rootConfigPath);
+    if (this.migrateLegacySkillPermissions(config, skillNames)) {
+      changed = true;
+    }
+    if (changed) {
+      await this.writeJsonConfig(configPath, config);
+    }
+    return changed;
+  }
+
+  private migrateLegacySkillPermissions(
+    config: Record<string, unknown>,
+    skillNames: readonly string[],
+  ): boolean {
+    const legacy: unknown = config.permission;
+    if (!Installer.isRecord(legacy)) {
+      return false;
+    }
+    const skill: unknown = legacy.skill;
+    if (!Installer.isRecord(skill)) {
+      return false;
+    }
+    let removed: boolean = false;
+    for (const name of skillNames) {
+      if (skill[name] !== undefined) {
+        delete skill[name];
+        removed = true;
+      }
+    }
+    if (!removed) {
+      return false;
+    }
+    if (Object.keys(skill).length === 0) {
+      delete legacy.skill;
+    }
+    if (Object.keys(legacy).length === 0) {
+      delete config.permission;
+    }
     return true;
   }
 
-  private static strictParse(text: string): unknown | null {
-    try {
-      return JSON.parse(text);
-    } catch {
-      return null;
-    }
+  private static skillAllowRule(name: string): PermissionRule {
+    return { action: "skill", resource: name, effect: "allow" };
   }
 
-  private static async readStrictConfigObject(path: string): Promise<Record<string, unknown> | null> {
-    let content: string;
-    try {
-      content = await readFile(path, "utf-8");
-    } catch {
-      return null;
+  private static ruleAllowsSkill(rule: unknown, skillId: string): boolean {
+    if (!Installer.isRecord(rule)) {
+      return false;
     }
-    const parsed: unknown = Installer.strictParse(content);
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-      return null;
+    if (rule.action !== "skill" || rule.effect !== "allow") {
+      return false;
     }
-    return parsed as Record<string, unknown>;
+    if (typeof rule.resource !== "string") {
+      return false;
+    }
+    return Installer.wildcardMatches(rule.resource, skillId);
   }
 
-  private static async firstExisting(paths: readonly string[]): Promise<string | null> {
-    for (const path of paths) {
-      if (await exists(path)) {
-        return path;
+  private static wildcardMatches(pattern: string, value: string): boolean {
+    const source: string = pattern
+      .replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      .replaceAll("\\*", ".*")
+      .replaceAll("\\?", ".");
+    return new RegExp(`^${source}$`).test(value);
+  }
+
+  private async addPluginIfMissing(configPath: string): Promise<boolean> {
+    const config: Record<string, unknown> | null = await this.readJsonConfig(configPath);
+    if (config === null) {
+      console.warn(
+        `[${PACKAGE_NAME}] Refusing to write ${configPath}: the file is not valid JSON. ` +
+          `Fix or remove the file, then re-run install. The file was left unchanged.`,
+      );
+      return false;
+    }
+    if (Installer.namesInclude(Installer.registeredNames(config), PACKAGE_NAME)) {
+      return false;
+    }
+    const raw: unknown = config.plugins;
+    if (raw !== undefined && !Array.isArray(raw)) {
+      console.warn(
+        `[${PACKAGE_NAME}] Refusing to write ${configPath}: "plugins" is present but is not an array. ` +
+          `Fix or remove the file, then re-run install. The file was left unchanged.`,
+      );
+      return false;
+    }
+    const plugins: unknown[] = Array.isArray(raw) ? raw : [];
+    plugins.push(PluginNameNormalizer.canonicalize(PACKAGE_NAME));
+    config.plugins = plugins;
+    await this.writeJsonConfig(configPath, config);
+    return true;
+  }
+
+  private async removePluginFromConfig(configPath: string): Promise<boolean> {
+    const config: Record<string, unknown> | null = await this.readJsonConfig(configPath);
+    if (config === null) {
+      console.warn(
+        `[${PACKAGE_NAME}] Refusing to write ${configPath}: the file is not valid JSON. ` +
+          `Fix or remove the file manually. The file was left unchanged.`,
+      );
+      return false;
+    }
+    let changed: boolean = false;
+    const v2: unknown = config.plugins;
+    if (Array.isArray(v2)) {
+      const kept: unknown[] = Installer.filterOurEntries(v2, PACKAGE_NAME);
+      if (kept.length !== v2.length) {
+        if (kept.length === 0) {
+          delete config.plugins;
+        } else {
+          config.plugins = kept;
+        }
+        changed = true;
       }
     }
-    return null;
+    const legacy: unknown = config.plugin;
+    if (Array.isArray(legacy)) {
+      const kept: unknown[] = Installer.filterOurEntries(legacy, PACKAGE_NAME);
+      if (kept.length !== legacy.length) {
+        if (kept.length === 0) {
+          delete config.plugin;
+        } else {
+          config.plugin = kept;
+        }
+        changed = true;
+      }
+    }
+    if (changed) {
+      await this.writeJsonConfig(configPath, config);
+    }
+    return changed;
+  }
+
+  private async isPluginListed(configPath: string): Promise<boolean> {
+    const config: Record<string, unknown> | null = await this.readJsonConfig(configPath);
+    if (config === null) {
+      return false;
+    }
+    return Installer.namesInclude(Installer.registeredNames(config), PACKAGE_NAME);
+  }
+
+  private async migrateRootConfig(projectDir: string): Promise<boolean> {
+    const rootConfigPath: string = join(projectDir, "opencode.json");
+    const dotOpencodeConfigPath: string = join(projectDir, ".opencode", "opencode.json");
+    const rootExists: boolean = await exists(rootConfigPath);
+    if (!rootExists) {
+      return false;
+    }
+    const rootConfig: Record<string, unknown> | null = await this.readJsonConfig(rootConfigPath);
+    if (rootConfig === null) {
+      console.warn(
+        `[${PACKAGE_NAME}] Refusing to migrate ${rootConfigPath}: the file is not valid JSON. ` +
+          `Fix or remove the file, then re-run install. The file was left unchanged.`,
+      );
+      return false;
+    }
+    const dotOpencodeExists: boolean = await exists(dotOpencodeConfigPath);
+    if (dotOpencodeExists) {
+      const dotConfig: Record<string, unknown> | null = await this.readJsonConfig(dotOpencodeConfigPath);
+      if (dotConfig === null) {
+        console.warn(
+          `[${PACKAGE_NAME}] Refusing to migrate ${rootConfigPath}: ${dotOpencodeConfigPath} is not valid JSON. ` +
+            `Both files were left unchanged.`,
+        );
+        return false;
+      }
+      const merged: Record<string, unknown> = { ...rootConfig, ...dotConfig };
+      await this.writeJsonConfig(dotOpencodeConfigPath, merged);
+    } else {
+      await mkdir(join(projectDir, ".opencode"), { recursive: true });
+      await this.writeJsonConfig(dotOpencodeConfigPath, rootConfig);
+    }
+    await rm(rootConfigPath);
+    return true;
   }
 }
-
 
 export async function install(
   scope: Scope,
@@ -670,13 +686,6 @@ export function getLocalConfigPath(projectDir: string): string {
 
 export async function isPluginInConfig(configPath: string, packageName: string): Promise<boolean> {
   return Installer.isPluginListedIn(configPath, packageName);
-}
-
-export async function pluginRegistrationForBase(
-  configBase: string,
-  packageName: string,
-): Promise<PluginRegistration> {
-  return Installer.pluginRegistrationForBase(configBase, packageName);
 }
 
 export async function isScopeInstalled(configBase: string): Promise<boolean> {
