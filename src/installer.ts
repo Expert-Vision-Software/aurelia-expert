@@ -47,6 +47,12 @@ export interface StatusResult {
   global: ScopeStatus | null;
 }
 
+interface PermissionRule {
+  action: string;
+  resource: string;
+  effect: string;
+}
+
 const SKILL_NAMES: readonly string[] = [
   "aurelia-expert",
   "aurelia-foundation",
@@ -97,11 +103,66 @@ export class Installer {
     if (config === null) {
       return false;
     }
-    const raw: unknown = config.plugin;
-    if (!Array.isArray(raw)) {
-      return false;
+    return Installer.namesInclude(Installer.registeredNames(config), packageName);
+  }
+
+  private static registeredNames(config: Record<string, unknown>): string[] {
+    const v2: unknown = config.plugins;
+    if (v2 !== undefined) {
+      const entries: unknown[] = Array.isArray(v2) ? v2 : [];
+      return Installer.namesFromEntries(entries);
     }
-    return raw.some(entry => typeof entry === "string" && PluginNameNormalizer.matches(entry, packageName));
+    const legacy: unknown = config.plugin;
+    const entries: unknown[] = Array.isArray(legacy) ? legacy : [];
+    return Installer.namesFromEntries(entries);
+  }
+
+  private static namesFromEntries(entries: readonly unknown[]): string[] {
+    const names: string[] = [];
+    for (const entry of entries) {
+      const name: string | null = Installer.entryName(entry);
+      if (name !== null) {
+        names.push(name);
+      }
+    }
+    return names;
+  }
+
+  private static entryName(entry: unknown): string | null {
+    if (typeof entry === "string") {
+      return entry;
+    }
+    if (Installer.isRecord(entry)) {
+      const pkg: unknown = entry.package;
+      if (typeof pkg === "string") {
+        return pkg;
+      }
+    }
+    return null;
+  }
+
+  private static isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+
+  private static namesInclude(names: readonly string[], packageName: string): boolean {
+    for (const name of names) {
+      if (PluginNameNormalizer.matches(name, packageName)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static filterOurEntries(entries: readonly unknown[], packageName: string): unknown[] {
+    const kept: unknown[] = [];
+    for (const entry of entries) {
+      const name: string | null = Installer.entryName(entry);
+      if (name === null || !PluginNameNormalizer.matches(name, packageName)) {
+        kept.push(entry);
+      }
+    }
+    return kept;
   }
 
   static skillNames(): readonly string[] {
@@ -392,25 +453,89 @@ export class Installer {
       );
       return false;
     }
-    if (config.permission === undefined) {
-      config.permission = {};
-    }
-    const permission: Record<string, unknown> = config.permission as Record<string, unknown>;
-    if (permission.skill === undefined) {
-      permission.skill = {};
-    }
-    const skillPerms: Record<string, unknown> = permission.skill as Record<string, unknown>;
     let changed: boolean = false;
-    for (const name of skillNames) {
-      if (skillPerms[name] !== "allow") {
-        skillPerms[name] = "allow";
-        changed = true;
+    const raw: unknown = config.permissions;
+    if (raw === undefined) {
+      config.permissions = skillNames.map(name => Installer.skillAllowRule(name));
+      changed = true;
+    } else if (Array.isArray(raw)) {
+      const rules: unknown[] = raw;
+      for (const name of skillNames) {
+        if (!rules.some(rule => Installer.ruleAllowsSkill(rule, name))) {
+          rules.push(Installer.skillAllowRule(name));
+          changed = true;
+        }
       }
+    } else {
+      console.warn(
+        `[${PACKAGE_NAME}] Refusing to write ${configPath}: "permissions" is present but is not an array. ` +
+          `Fix or remove the file, then re-run install. The file was left unchanged.`,
+      );
+      return false;
+    }
+    if (this.migrateLegacySkillPermissions(config, skillNames)) {
+      changed = true;
     }
     if (changed) {
       await this.writeJsonConfig(configPath, config);
     }
     return changed;
+  }
+
+  private migrateLegacySkillPermissions(
+    config: Record<string, unknown>,
+    skillNames: readonly string[],
+  ): boolean {
+    const legacy: unknown = config.permission;
+    if (!Installer.isRecord(legacy)) {
+      return false;
+    }
+    const skill: unknown = legacy.skill;
+    if (!Installer.isRecord(skill)) {
+      return false;
+    }
+    let removed: boolean = false;
+    for (const name of skillNames) {
+      if (skill[name] !== undefined) {
+        delete skill[name];
+        removed = true;
+      }
+    }
+    if (!removed) {
+      return false;
+    }
+    if (Object.keys(skill).length === 0) {
+      delete legacy.skill;
+    }
+    if (Object.keys(legacy).length === 0) {
+      delete config.permission;
+    }
+    return true;
+  }
+
+  private static skillAllowRule(name: string): PermissionRule {
+    return { action: "skill", resource: name, effect: "allow" };
+  }
+
+  private static ruleAllowsSkill(rule: unknown, skillId: string): boolean {
+    if (!Installer.isRecord(rule)) {
+      return false;
+    }
+    if (rule.action !== "skill" || rule.effect !== "allow") {
+      return false;
+    }
+    if (typeof rule.resource !== "string") {
+      return false;
+    }
+    return Installer.wildcardMatches(rule.resource, skillId);
+  }
+
+  private static wildcardMatches(pattern: string, value: string): boolean {
+    const source: string = pattern
+      .replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      .replaceAll("\\*", ".*")
+      .replaceAll("\\?", ".");
+    return new RegExp(`^${source}$`).test(value);
   }
 
   private async addPluginIfMissing(configPath: string): Promise<boolean> {
@@ -422,12 +547,20 @@ export class Installer {
       );
       return false;
     }
-    const plugins: string[] = await this.collectPluginEntries(config);
-    if (await this.anyEntryMatches(plugins)) {
+    if (Installer.namesInclude(Installer.registeredNames(config), PACKAGE_NAME)) {
       return false;
     }
+    const raw: unknown = config.plugins;
+    if (raw !== undefined && !Array.isArray(raw)) {
+      console.warn(
+        `[${PACKAGE_NAME}] Refusing to write ${configPath}: "plugins" is present but is not an array. ` +
+          `Fix or remove the file, then re-run install. The file was left unchanged.`,
+      );
+      return false;
+    }
+    const plugins: unknown[] = Array.isArray(raw) ? raw : [];
     plugins.push(PluginNameNormalizer.canonicalize(PACKAGE_NAME));
-    config.plugin = plugins;
+    config.plugins = plugins;
     await this.writeJsonConfig(configPath, config);
     return true;
   }
@@ -441,18 +574,35 @@ export class Installer {
       );
       return false;
     }
-    const plugins: string[] = await this.collectPluginEntries(config);
-    const filtered: string[] = await this.filterOutOurEntries(plugins);
-    if (filtered.length === plugins.length) {
-      return false;
+    let changed: boolean = false;
+    const v2: unknown = config.plugins;
+    if (Array.isArray(v2)) {
+      const kept: unknown[] = Installer.filterOurEntries(v2, PACKAGE_NAME);
+      if (kept.length !== v2.length) {
+        if (kept.length === 0) {
+          delete config.plugins;
+        } else {
+          config.plugins = kept;
+        }
+        changed = true;
+      }
     }
-    if (filtered.length === 0) {
-      delete config.plugin;
-    } else {
-      config.plugin = filtered;
+    const legacy: unknown = config.plugin;
+    if (Array.isArray(legacy)) {
+      const kept: unknown[] = Installer.filterOurEntries(legacy, PACKAGE_NAME);
+      if (kept.length !== legacy.length) {
+        if (kept.length === 0) {
+          delete config.plugin;
+        } else {
+          config.plugin = kept;
+        }
+        changed = true;
+      }
     }
-    await this.writeJsonConfig(configPath, config);
-    return true;
+    if (changed) {
+      await this.writeJsonConfig(configPath, config);
+    }
+    return changed;
   }
 
   private async isPluginListed(configPath: string): Promise<boolean> {
@@ -460,8 +610,7 @@ export class Installer {
     if (config === null) {
       return false;
     }
-    const plugins: string[] = await this.collectPluginEntries(config);
-    return await this.anyEntryMatches(plugins);
+    return Installer.namesInclude(Installer.registeredNames(config), PACKAGE_NAME);
   }
 
   private async migrateRootConfig(projectDir: string): Promise<boolean> {
@@ -497,39 +646,6 @@ export class Installer {
     }
     await rm(rootConfigPath);
     return true;
-  }
-
-  private async collectPluginEntries(config: Record<string, unknown>): Promise<string[]> {
-    const raw: unknown = config.plugin;
-    if (!Array.isArray(raw)) {
-      return [];
-    }
-    const out: string[] = [];
-    for (const item of raw) {
-      if (typeof item === "string") {
-        out.push(item);
-      }
-    }
-    return out;
-  }
-
-  private async anyEntryMatches(entries: readonly string[]): Promise<boolean> {
-    for (const entry of entries) {
-      if (await this.isOurPluginEntry(entry)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private async filterOutOurEntries(entries: readonly string[]): Promise<string[]> {
-    const out: string[] = [];
-    for (const entry of entries) {
-      if (!(await this.isOurPluginEntry(entry))) {
-        out.push(entry);
-      }
-    }
-    return out;
   }
 }
 

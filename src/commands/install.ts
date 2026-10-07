@@ -33,9 +33,9 @@ export async function installCommand(options: InstallOptions): Promise<void> {
     console.log("  Migrated: opencode.json → .opencode/opencode.json");
   }
   if (result.permissionConfigured) {
-    console.log("  Permission: skill.allow granted for all 8 skills");
+    console.log("  Permission: skill allow rules granted for all 8 skills");
   }
   if (result.pluginAdded) {
-    console.log("  Plugin: aurelia-expert@latest registered in opencode.json");
+    console.log("  Plugin: aurelia-expert@latest added to the plugins array in opencode.json");
   }
 }

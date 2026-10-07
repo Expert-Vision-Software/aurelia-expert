@@ -28,8 +28,19 @@ interface Sandbox {
   globalManifestPath: string;
 }
 
+interface PermissionRule {
+  action: string;
+  resource: string;
+  effect: string;
+}
+
 async function readConfig(path: string): Promise<Record<string, unknown>> {
   return JSON.parse(await readFile(path, "utf-8")) as Record<string, unknown>;
+}
+
+async function readRules(path: string): Promise<PermissionRule[]> {
+  const config: Record<string, unknown> = await readConfig(path);
+  return (config.permissions ?? []) as PermissionRule[];
 }
 
 async function makeSandbox(): Promise<Sandbox> {
@@ -80,7 +91,7 @@ describe("manifest-gated install", () => {
     await cleanupSandbox(sandbox);
   });
 
-  test("fresh install copies every skill, writes permissions, manifest, and canonical plugin entry", async () => {
+  test("fresh install copies every skill, writes v2 permission rules, manifest, and plugins entry", async () => {
     const result = await sandbox.installer.install("local", sandbox.projectDir);
 
     expect(result.action).toBe("installed");
@@ -92,13 +103,16 @@ describe("manifest-gated install", () => {
     expect(await exists(sandbox.localManifestPath)).toBe(true);
 
     const config: Record<string, unknown> = await readConfig(sandbox.localConfigPath);
-    const permission = config.permission as { skill?: Record<string, string> };
+    const rules: PermissionRule[] = config.permissions as PermissionRule[];
     for (const name of SKILL_NAMES) {
-      expect(permission.skill?.[name]).toBe("allow");
+      expect(rules).toContainEqual({ action: "skill", resource: name, effect: "allow" });
     }
-    const plugins = config.plugin as string[];
+    expect(config.permission).toBeUndefined();
+    const plugins: string[] = config.plugins as string[];
     expect(plugins).toContain("aurelia-expert@latest");
+    expect(config.plugin).toBeUndefined();
     expect(result.pluginAdded).toBe(true);
+    expect(result.permissionConfigured).toBe(true);
   });
 
   test("up-to-date scope is a zero-write noop", async () => {
@@ -181,6 +195,244 @@ describe("manifest-gated install", () => {
   });
 });
 
+describe("v2 permission ruleset", () => {
+  let sandbox: Sandbox;
+
+  beforeEach(async () => {
+    sandbox = await makeSandbox();
+  });
+
+  afterEach(async () => {
+    await cleanupSandbox(sandbox);
+  });
+
+  test("writes exactly one allow rule per owned skill id", async () => {
+    await sandbox.installer.install("local", sandbox.projectDir);
+
+    const rules: PermissionRule[] = await readRules(sandbox.localConfigPath);
+    expect(rules.length).toBe(SKILL_NAMES.length);
+    for (const name of SKILL_NAMES) {
+      expect(rules).toContainEqual({ action: "skill", resource: name, effect: "allow" });
+    }
+  });
+
+  test("existing allow rules are not duplicated on install", async () => {
+    await writeConfig(sandbox.localConfigPath, {
+      permissions: SKILL_NAMES.map(name => ({ action: "skill", resource: name, effect: "allow" })),
+    });
+
+    const result = await sandbox.installer.install("local", sandbox.projectDir);
+
+    expect(result.permissionConfigured).toBe(false);
+    const rules: PermissionRule[] = await readRules(sandbox.localConfigPath);
+    expect(rules.length).toBe(SKILL_NAMES.length);
+  });
+
+  test("consumer glob coverage suppresses new rules", async () => {
+    await writeConfig(sandbox.localConfigPath, {
+      permissions: [{ action: "skill", resource: "aurelia-*", effect: "allow" }],
+    });
+
+    const result = await sandbox.installer.install("local", sandbox.projectDir);
+
+    expect(result.permissionConfigured).toBe(false);
+    expect((await readRules(sandbox.localConfigPath)).length).toBe(1);
+  });
+
+  test("unrelated consumer rules are preserved and our rules append after them", async () => {
+    const consumerRule: PermissionRule = { action: "shell", resource: "git push *", effect: "deny" };
+    await writeConfig(sandbox.localConfigPath, { permissions: [consumerRule] });
+
+    await sandbox.installer.install("local", sandbox.projectDir);
+
+    const rules: PermissionRule[] = await readRules(sandbox.localConfigPath);
+    expect(rules[0]).toEqual(consumerRule);
+    expect(rules.length).toBe(SKILL_NAMES.length + 1);
+    for (const name of SKILL_NAMES) {
+      expect(rules).toContainEqual({ action: "skill", resource: name, effect: "allow" });
+    }
+  });
+
+  test("non-array permissions key is refused and the file stays byte-for-byte", async () => {
+    const raw: string = JSON.stringify({ permissions: "all" });
+    await writeRawConfig(sandbox.localConfigPath, raw);
+
+    const result = await sandbox.installer.install("local", sandbox.projectDir, LOAD_INSTALL_OPTIONS);
+
+    expect(result.permissionConfigured).toBe(false);
+    expect(await readFile(sandbox.localConfigPath, "utf-8")).toBe(raw);
+  });
+});
+
+describe("legacy permission migration", () => {
+  let sandbox: Sandbox;
+
+  beforeEach(async () => {
+    sandbox = await makeSandbox();
+  });
+
+  afterEach(async () => {
+    await cleanupSandbox(sandbox);
+  });
+
+  test("migrates v1 permission.skill records for owned ids into the v2 ruleset", async () => {
+    await writeConfig(sandbox.localConfigPath, {
+      permission: {
+        skill: {
+          "aurelia-expert": "allow",
+          "aurelia-runtime": "allow",
+          "some-other-skill": "allow",
+        },
+      },
+    });
+
+    const result = await sandbox.installer.install("local", sandbox.projectDir);
+
+    expect(result.permissionConfigured).toBe(true);
+    const config: Record<string, unknown> = await readConfig(sandbox.localConfigPath);
+    const rules: PermissionRule[] = config.permissions as PermissionRule[];
+    for (const name of SKILL_NAMES) {
+      expect(rules).toContainEqual({ action: "skill", resource: name, effect: "allow" });
+    }
+    const legacy = config.permission as { skill: Record<string, string> };
+    expect(legacy.skill).toEqual({ "some-other-skill": "allow" });
+  });
+
+  test("drops the legacy skill record and permission container once emptied", async () => {
+    await writeConfig(sandbox.localConfigPath, {
+      permission: { skill: { "aurelia-expert": "allow" } },
+    });
+
+    await sandbox.installer.install("local", sandbox.projectDir);
+
+    const config: Record<string, unknown> = await readConfig(sandbox.localConfigPath);
+    expect(config.permission).toBeUndefined();
+    const rules: PermissionRule[] = config.permissions as PermissionRule[];
+    for (const name of SKILL_NAMES) {
+      expect(rules).toContainEqual({ action: "skill", resource: name, effect: "allow" });
+    }
+  });
+
+  test("legacy records for unrelated skills keep the permission object alive", async () => {
+    await writeConfig(sandbox.localConfigPath, {
+      permission: {
+        skill: { "aurelia-foundation": "allow" },
+        bash: { "rm *": "deny" },
+      },
+    });
+
+    await sandbox.installer.install("local", sandbox.projectDir);
+
+    const config: Record<string, unknown> = await readConfig(sandbox.localConfigPath);
+    const legacy = config.permission as Record<string, unknown>;
+    expect(legacy.skill).toBeUndefined();
+    expect(legacy.bash).toEqual({ "rm *": "deny" });
+  });
+});
+
+describe("v2 plugins array and legacy plugin key", () => {
+  let sandbox: Sandbox;
+
+  beforeEach(async () => {
+    sandbox = await makeSandbox();
+  });
+
+  afterEach(async () => {
+    await cleanupSandbox(sandbox);
+  });
+
+  test("consumer plugins array gains our canonical entry and keeps its own entries", async () => {
+    await writeConfig(sandbox.localConfigPath, { plugins: ["some-other-pkg"] });
+
+    const result = await sandbox.installer.install("local", sandbox.projectDir);
+
+    expect(result.pluginAdded).toBe(true);
+    const config: Record<string, unknown> = await readConfig(sandbox.localConfigPath);
+    expect(config.plugins).toEqual(["some-other-pkg", "aurelia-expert@latest"]);
+    expect(config.plugin).toBeUndefined();
+  });
+
+  test("object-form plugin entries are matched by package name", async () => {
+    await writeConfig(sandbox.localConfigPath, {
+      plugins: [{ package: "aurelia-expert", options: { enabled: true } }],
+    });
+
+    const result = await sandbox.installer.install("local", sandbox.projectDir);
+
+    expect(result.pluginAdded).toBe(false);
+    const config: Record<string, unknown> = await readConfig(sandbox.localConfigPath);
+    const plugins: Array<Record<string, unknown>> = config.plugins as Array<Record<string, unknown>>;
+    expect(plugins.length).toBe(1);
+    expect(plugins[0].package).toBe("aurelia-expert");
+  });
+
+  test("detection counts a legacy plugin entry as registered without duplicating into plugins", async () => {
+    await writeConfig(sandbox.localConfigPath, { plugin: ["aurelia-expert@1.0.0"] });
+
+    const result = await sandbox.installer.install("local", sandbox.projectDir);
+
+    expect(result.pluginAdded).toBe(false);
+    const config: Record<string, unknown> = await readConfig(sandbox.localConfigPath);
+    expect(config.plugins).toBeUndefined();
+    expect(config.plugin).toEqual(["aurelia-expert@1.0.0"]);
+  });
+
+  test("plugins-present wins: a dead legacy entry does not block a fresh v2 registration", async () => {
+    await writeConfig(sandbox.localConfigPath, { plugins: ["other-pkg"], plugin: ["aurelia-expert"] });
+
+    const result = await sandbox.installer.install("local", sandbox.projectDir);
+
+    expect(result.pluginAdded).toBe(true);
+    const config: Record<string, unknown> = await readConfig(sandbox.localConfigPath);
+    expect(config.plugins).toEqual(["other-pkg", "aurelia-expert@latest"]);
+    expect(config.plugin).toEqual(["aurelia-expert"]);
+  });
+
+  test("non-array plugins key is refused and the file stays byte-for-byte", async () => {
+    const seeded: Record<string, unknown> = {
+      plugins: "aurelia-expert",
+      permissions: SKILL_NAMES.map(name => ({ action: "skill", resource: name, effect: "allow" })),
+    };
+    const raw: string = JSON.stringify(seeded, null, 2);
+    await writeRawConfig(sandbox.localConfigPath, raw);
+
+    const result = await sandbox.installer.install("local", sandbox.projectDir, {
+      addPluginConfig: true,
+      migrateRootConfig: false,
+      force: false,
+    });
+
+    expect(result.pluginAdded).toBe(false);
+    expect(result.permissionConfigured).toBe(false);
+    expect(await readFile(sandbox.localConfigPath, "utf-8")).toBe(raw);
+  });
+
+  test("uninstall removes our entries from both keys and leaves unrelated entries", async () => {
+    await writeConfig(sandbox.localConfigPath, {
+      plugins: ["aurelia-expert@latest", "keep-me"],
+      plugin: ["aurelia-expert", "also-keep-me"],
+    });
+
+    const result = await sandbox.installer.uninstall("local", sandbox.projectDir);
+
+    expect(result.pluginRemoved).toBe(true);
+    const config: Record<string, unknown> = await readConfig(sandbox.localConfigPath);
+    expect(config.plugins).toEqual(["keep-me"]);
+    expect(config.plugin).toEqual(["also-keep-me"]);
+  });
+
+  test("uninstall removes a legacy-only entry and drops the emptied key", async () => {
+    await writeConfig(sandbox.localConfigPath, { plugin: ["aurelia-expert"] });
+
+    const result = await sandbox.installer.uninstall("local", sandbox.projectDir);
+
+    expect(result.pluginRemoved).toBe(true);
+    const config: Record<string, unknown> = await readConfig(sandbox.localConfigPath);
+    expect(config.plugin).toBeUndefined();
+    expect(config.plugins).toBeUndefined();
+  });
+});
+
 describe("CLI-only behaviors at load", () => {
   let sandbox: Sandbox;
 
@@ -192,12 +444,13 @@ describe("CLI-only behaviors at load", () => {
     await cleanupSandbox(sandbox);
   });
 
-  test("load options never add the plugin entry", async () => {
+  test("load options never add the plugins entry", async () => {
     await writeConfig(sandbox.localConfigPath, { theme: "dark" });
 
     await sandbox.installer.install("local", sandbox.projectDir, LOAD_INSTALL_OPTIONS);
 
     const config: Record<string, unknown> = await readConfig(sandbox.localConfigPath);
+    expect(config.plugins).toBeUndefined();
     expect(config.plugin).toBeUndefined();
     expect(config.theme).toBe("dark");
   });
@@ -283,15 +536,19 @@ describe("hardened config writes", () => {
   test("plugin dedup is semantic across name, @latest, version, and case variants", async () => {
     await writeConfig(
       sandbox.localConfigPath,
-      { plugin: ["aurelia-expert@latest", "Aurelia-Expert", "some-other-pkg"] },
+      { plugins: ["aurelia-expert@latest", "Aurelia-Expert", "some-other-pkg"] },
     );
 
     const result = await sandbox.installer.install("local", sandbox.projectDir);
 
     expect(result.pluginAdded).toBe(false);
     const config: Record<string, unknown> = await readConfig(sandbox.localConfigPath);
-    const plugins = config.plugin as string[];
-    expect(plugins.filter(entry => entry.toLowerCase().startsWith("aurelia-expert")).length).toBe(2);
+    const plugins: unknown[] = config.plugins as unknown[];
+    expect(
+      plugins.filter(
+        entry => typeof entry === "string" && entry.toLowerCase().startsWith("aurelia-expert"),
+      ).length,
+    ).toBe(2);
     expect(plugins).toContain("some-other-pkg");
   });
 });
@@ -308,7 +565,7 @@ describe("regression contract table", () => {
   });
 
   test("global context: zero repo writes, global assets + manifest ensured", async () => {
-    await writeConfig(sandbox.globalConfigPath, { plugin: ["aurelia-expert"] });
+    await writeConfig(sandbox.globalConfigPath, { plugins: ["aurelia-expert"] });
 
     const context = await RegistrationDetector.detect(sandbox.projectDir);
     expect(context).toBe("global");
@@ -324,7 +581,7 @@ describe("regression contract table", () => {
 
   test("repo-local context: repo assets ensured, root file untouched", async () => {
     const rootConfig: string = join(sandbox.projectDir, "opencode.json");
-    await writeConfig(rootConfig, { plugin: ["aurelia-expert@latest"] });
+    await writeConfig(rootConfig, { plugins: ["aurelia-expert@latest"] });
 
     const context = await RegistrationDetector.detect(sandbox.projectDir);
     expect(context).toBe("repo-local");
@@ -338,9 +595,9 @@ describe("regression contract table", () => {
     expect(await exists(sandbox.globalManifestPath)).toBe(false);
   });
 
-  test("both context: both scopes ensured without leakage", async () => {
+  test("both context: legacy and v2 registrations are both detected without leakage", async () => {
     await writeConfig(sandbox.globalConfigPath, { plugin: ["aurelia-expert@1.0.0"] });
-    await writeConfig(sandbox.localConfigPath, { plugin: ["aurelia-expert"] });
+    await writeConfig(sandbox.localConfigPath, { plugins: ["aurelia-expert"] });
 
     const context = await RegistrationDetector.detect(sandbox.projectDir);
     expect(context).toBe("both");
@@ -390,7 +647,7 @@ describe("uninstall", () => {
     await cleanupSandbox(sandbox);
   });
 
-  test("removes every skill directory, the manifest, and the plugin entry", async () => {
+  test("removes every skill directory, the manifest, and the plugins entry", async () => {
     const result = await sandbox.installer.uninstall("local", sandbox.projectDir);
 
     expect(result.removed.length).toBe(SKILL_NAMES.length + 1);
@@ -399,7 +656,7 @@ describe("uninstall", () => {
     }
     expect(result.pluginRemoved).toBe(true);
     const config: Record<string, unknown> = await readConfig(sandbox.localConfigPath);
-    expect(config.plugin).toBeUndefined();
+    expect(config.plugins).toBeUndefined();
   });
 });
 
