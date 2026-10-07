@@ -39,6 +39,21 @@ written against the v1 shapes end to end: it read only `config.plugin`, wrote
    explicit path. Bundled skill frontmatter is untouched (the skills directory is
    the product and must stay byte-identical).
 
+## Sources
+
+- OpenCode v2 skills docs, https://opencode.ai/v2/docs/skills (verified
+  2026-10-07): Discovery table lists `.agents/skills` as a project compatibility
+  source, "searched from the current directory up to the project root" at every
+  level; Precedence registers `.agents/skills` before explicit `skills` config
+  entries. The `skills` config key is a string array whose relative paths resolve
+  from the active working directory, not the config file.
+- OpenCode v2 permissions docs, https://opencode.ai/v2/docs/permissions and
+  https://opencode.ai/v2/docs/skills#permissions (verified 2026-10-07): ordered
+  `{ action, resource, effect }` rules; the `skill` action's resource is the
+  skill ID; rules run in order with last-match-wins.
+- OpenCode v2 config docs, https://opencode.ai/v2/docs/config#plugins: `plugins`
+  entries are strings (`name@latest`) or `{ package, options }` objects.
+
 ## Consequences
 
 - Consumers on OpenCode v1 should pin an earlier release of this package; the
