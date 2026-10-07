@@ -69,7 +69,7 @@ Each reference file covers one sub-area. Load the one that matches the question.
 
 - **DI** — `resolve()`, `DI.createInterface`, registration lifecycles, advanced resolvers → [reference/di.md](reference/di.md)
 - **Routing & navigation** — `@route`, `<au-viewport>`, `IContextRouter`, route parameters with `mergeStrategy`, lifecycle guards → [reference/routing.md](reference/routing.md)
-- **Events & tasks** — AppTask phases (`creating` / `hydrating` / ...), `TaskQueue`, `.trigger`/`.capture` listeners, event modifiers → [reference/events-tasks.md](reference/events-tasks.md)
+- **Events & tasks** — AppTask phases (`creating` / `hydrating` / ...), `TaskQueue`, `.trigger`/`.capture` listeners, event modifiers → [reference/events-tasks.md](reference/events-tasks.md). Caveat: the global `resolve()` throws AUR0016 inside `AppTask.activated` callbacks — declare dependencies as callback arguments instead.
 - **Cross-feature orchestration** — thin-page mediator, bindables down / events up, service-as-store → [reference/orchestration.md](reference/orchestration.md)
 
 ## Ground truth
