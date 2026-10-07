@@ -23,7 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Contract tests for the new guarantees: jsonc detection and comment-preserving splices, byte-preservation of unrelated config bytes, unknown-config zero-writes, loud asset-absence errors, load-path no-writes (plugin arrays and permissions), hook never throwing with exactly-once advisories, `--mode copy` rejection, and `clear-cache` behavior.
-## [Unreleased]
+
+## [1.0.0] - 2026-10-07
 
 ### Changed
 - **Upgraded to the OpenCode v2 plugin system.** The plugin entrypoint is now an Effect-first `Plugin.define({ id, effect })` (`src/plugin.ts`, re-exported from the root `plugin.ts` and `index.ts`, declared as `exports["./server"]`), replacing the v1 `config()` hook on `@opencode-ai/plugin`. Load-time behavior is unchanged: scope-aware, manifest-gated install-on-load, read-only registration detection, once-per-session not-installed advisory, skipped-file warnings. The direct dependency is now `@opencode/plugin` (^2.0.24) with `effect` (^4.0.0-rc.112).
