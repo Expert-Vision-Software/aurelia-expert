@@ -5,6 +5,18 @@ All notable changes to `aurelia-expert` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **Upgraded to the OpenCode v2 plugin system.** The plugin entrypoint is now an Effect-first `Plugin.define({ id, effect })` (`src/plugin.ts`, re-exported from the root `plugin.ts` and `index.ts`, declared as `exports["./server"]`), replacing the v1 `config()` hook on `@opencode-ai/plugin`. Load-time behavior is unchanged: scope-aware, manifest-gated install-on-load, read-only registration detection, once-per-session not-installed advisory, skipped-file warnings. The direct dependency is now `@opencode/plugin` (^2.0.24) with `effect` (^4.0.0-rc.112).
+- **Installer writes v2-native config keys.** `bunx aurelia-expert install` adds `aurelia-expert@latest` to the `plugins` array and grants skills via the ordered `permissions` ruleset (`{ action: "skill", resource: "<skill-id>", effect: "allow" }`); uninstall cleans both `plugins` and a legacy `plugin` entry. Detection reads `plugins` first and falls back read-only to the legacy singular `plugin` key, so v1-era registrations are not duplicated. Legacy `permission.skill` records for our skills are migrated to the ruleset on install; unrelated consumer entries are never touched. Unparseable configs remain byte-for-byte untouched.
+- **Dev self-config (`.opencode/opencode.json`) rewritten to v2-native keys**: `plugins: ["opencode-architect@latest"]` (1.0.0 is the latest release; expressed as `@latest` per policy). The `skills: { paths: [...] }` entry was dropped — `.agents/skills` is natively discovered by OpenCode v2 from any working directory inside the repo, which is more robust than a CWD-relative explicit path.
+- Consumer docs updated: README install snippets and the load-contract description now teach the `plugins` array.
+
+### Added
+- `tests/plugin.test.ts` — first coverage of the plugin entrypoint: v2 export shape through both entrypoints, install-on-load, advisory-once with zero writes when uninstalled, and skipped-consumer-modified-file warning.
+- ADR-0006: config-key migration to OpenCode v2 (supersedes the key shapes in ADR-0005's letter; its installer-owns-config principle stands).
+
 ## [0.5.2] - 2026-09-18
 
 ### Changed

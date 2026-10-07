@@ -41,7 +41,7 @@ bunx aurelia-expert install
 npx skills add expert-vision-software/aurelia-expert --skill aurelia-expert -a opencode
 
 # 3. OpenCode auto-install — add to your opencode.json
-#    { "plugin": ["aurelia-expert"] }
+#    { "plugins": ["aurelia-expert"] }
 ```
 
 That's it — skills are available immediately. The CLI defaults to **local scope** (writes to `./.opencode/skills/`). Pass `--scope global` to install once for all your projects (`~/.config/opencode/skills/`).
@@ -172,23 +172,23 @@ npx skills add expert-vision-software/aurelia-expert --skill aurelia-expert -a o
 
 ### 3. OpenCode plugin auto-install
 
-Add `aurelia-expert` to your `opencode.json` `plugin` array:
+Add `aurelia-expert` to your `opencode.json` `plugins` array:
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["aurelia-expert"]
+  "plugins": ["aurelia-expert"]
 }
 ```
 
-OpenCode installs the package on next session start, then `plugin.ts#config()` runs a scope-aware, manifest-gated install: it detects where the plugin is registered (global config, `.opencode/opencode.json`, or a root `opencode.json` — with `name` ≡ `name@latest` ≡ `name@x.y.z` semantic matching) and ensures the skills only in the detected scope(s). Detection is read-only; the hook never edits `plugin` arrays, never touches a root `opencode.json`, refuses to rewrite unparseable configs, and is a zero-write no-op when the manifest already matches. If the plugin is not registered in any scope, a one-shot advisory is logged per session.
+OpenCode installs the package on next session start, then the plugin's v2 Effect-first entry (`src/plugin.ts`, exposed as `Plugin.define({ id, effect })`) runs a scope-aware, manifest-gated install at load: it detects where the plugin is registered (global config, `.opencode/opencode.json`, or a root `opencode.json` — with `name` ≡ `name@latest` ≡ `name@x.y.z` semantic matching, and legacy singular `plugin` entries still detected read-only for migration) and ensures the skills only in the detected scope(s). Detection is read-only; the effect never throws, never edits `plugins` arrays, never touches a root `opencode.json`, refuses to rewrite unparseable configs, and is a zero-write no-op when the manifest already matches. If the plugin is not registered in any scope, a one-shot advisory is logged per session.
 
 For local development against a checkout of this repo, reference the directory directly:
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["file:///absolute/path/to/aurelia-expert"]
+  "plugins": ["file:///absolute/path/to/aurelia-expert"]
 }
 ```
 
