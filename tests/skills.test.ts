@@ -1,5 +1,5 @@
 import { test, expect, describe } from "bun:test";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import {
@@ -180,20 +180,25 @@ describe("reference files", () => {
 });
 
 describe("package self-config", () => {
-  test(".opencode/opencode.json exists and registers skill paths", async () => {
+  test(".opencode/opencode.json uses only v2-native keys and registers opencode-architect@latest", async () => {
     const path: string = join(PACKAGE_ROOT, ".opencode", "opencode.json");
     const content: string = await readFile(path, "utf-8");
     const config = JSON.parse(content) as Record<string, unknown>;
-    const skills = config.skills as { paths?: unknown } | undefined;
-    expect(skills).toBeDefined();
-    if (skills === undefined) {
+    expect(config.plugin).toBeUndefined();
+    expect(config.skills).toBeUndefined();
+    const plugins: unknown = config.plugins;
+    expect(Array.isArray(plugins)).toBe(true);
+    if (!Array.isArray(plugins)) {
       return;
     }
-    expect(Array.isArray(skills.paths)).toBe(true);
-    if (!Array.isArray(skills.paths)) {
-      return;
-    }
-    expect(skills.paths.length).toBeGreaterThan(0);
+    expect(plugins).toContain("opencode-architect@latest");
+  });
+
+  test(".agents/skills holds dev-only skills discoverable natively by the v2 host", async () => {
+    const path: string = join(PACKAGE_ROOT, ".agents", "skills");
+    const entries: string[] = await readdir(path);
+    expect(entries.length).toBeGreaterThan(0);
+    expect(entries).toContain("writing-great-skills");
   });
 
   test("package.json exposes the aurelia-expert CLI bin", async () => {
