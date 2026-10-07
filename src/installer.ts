@@ -47,10 +47,12 @@ export interface StatusResult {
   global: ScopeStatus | null;
 }
 
-interface PermissionRule {
+export type PermissionEffect = "allow" | "deny" | "ask";
+
+export interface PermissionRule {
   action: string;
   resource: string;
-  effect: string;
+  effect: PermissionEffect;
 }
 
 const SKILL_NAMES: readonly string[] = [
@@ -108,9 +110,8 @@ export class Installer {
 
   private static registeredNames(config: Record<string, unknown>): string[] {
     const v2: unknown = config.plugins;
-    if (v2 !== undefined) {
-      const entries: unknown[] = Array.isArray(v2) ? v2 : [];
-      return Installer.namesFromEntries(entries);
+    if (Array.isArray(v2)) {
+      return Installer.namesFromEntries(v2);
     }
     const legacy: unknown = config.plugin;
     const entries: unknown[] = Array.isArray(legacy) ? legacy : [];
@@ -441,16 +442,20 @@ export class Installer {
     await writeFile(path, JSON.stringify(config, null, 2));
   }
 
+  private static warnRefusal(configPath: string, reason: string): void {
+    console.warn(
+      `[${PACKAGE_NAME}] Refusing to write ${configPath}: ${reason} ` +
+        `Fix or remove the file, then re-run install. The file was left unchanged.`,
+    );
+  }
+
   private async ensureSkillPermissions(
     configPath: string,
     skillNames: readonly string[],
   ): Promise<boolean> {
     const config: Record<string, unknown> | null = await this.readJsonConfig(configPath);
     if (config === null) {
-      console.warn(
-        `[${PACKAGE_NAME}] Refusing to write ${configPath}: the file is not valid JSON. ` +
-          `Fix or remove the file, then re-run install. The file was left unchanged.`,
-      );
+      Installer.warnRefusal(configPath, "the file is not valid JSON.");
       return false;
     }
     let changed: boolean = false;
@@ -467,13 +472,10 @@ export class Installer {
         }
       }
     } else {
-      console.warn(
-        `[${PACKAGE_NAME}] Refusing to write ${configPath}: "permissions" is present but is not an array. ` +
-          `Fix or remove the file, then re-run install. The file was left unchanged.`,
-      );
+      Installer.warnRefusal(configPath, `"permissions" is present but is not an array.`);
       return false;
     }
-    if (this.migrateLegacySkillPermissions(config, skillNames)) {
+    if (Installer.migrateLegacySkillPermissions(config, skillNames)) {
       changed = true;
     }
     if (changed) {
@@ -482,7 +484,7 @@ export class Installer {
     return changed;
   }
 
-  private migrateLegacySkillPermissions(
+  private static migrateLegacySkillPermissions(
     config: Record<string, unknown>,
     skillNames: readonly string[],
   ): boolean {
@@ -541,10 +543,7 @@ export class Installer {
   private async addPluginIfMissing(configPath: string): Promise<boolean> {
     const config: Record<string, unknown> | null = await this.readJsonConfig(configPath);
     if (config === null) {
-      console.warn(
-        `[${PACKAGE_NAME}] Refusing to write ${configPath}: the file is not valid JSON. ` +
-          `Fix or remove the file, then re-run install. The file was left unchanged.`,
-      );
+      Installer.warnRefusal(configPath, "the file is not valid JSON.");
       return false;
     }
     if (Installer.namesInclude(Installer.registeredNames(config), PACKAGE_NAME)) {
@@ -552,10 +551,7 @@ export class Installer {
     }
     const raw: unknown = config.plugins;
     if (raw !== undefined && !Array.isArray(raw)) {
-      console.warn(
-        `[${PACKAGE_NAME}] Refusing to write ${configPath}: "plugins" is present but is not an array. ` +
-          `Fix or remove the file, then re-run install. The file was left unchanged.`,
-      );
+      Installer.warnRefusal(configPath, `"plugins" is present but is not an array.`);
       return false;
     }
     const plugins: unknown[] = Array.isArray(raw) ? raw : [];
@@ -575,34 +571,33 @@ export class Installer {
       return false;
     }
     let changed: boolean = false;
-    const v2: unknown = config.plugins;
-    if (Array.isArray(v2)) {
-      const kept: unknown[] = Installer.filterOurEntries(v2, PACKAGE_NAME);
-      if (kept.length !== v2.length) {
-        if (kept.length === 0) {
-          delete config.plugins;
-        } else {
-          config.plugins = kept;
-        }
-        changed = true;
-      }
+    if (Installer.pruneOurEntries(config, "plugins")) {
+      changed = true;
     }
-    const legacy: unknown = config.plugin;
-    if (Array.isArray(legacy)) {
-      const kept: unknown[] = Installer.filterOurEntries(legacy, PACKAGE_NAME);
-      if (kept.length !== legacy.length) {
-        if (kept.length === 0) {
-          delete config.plugin;
-        } else {
-          config.plugin = kept;
-        }
-        changed = true;
-      }
+    if (Installer.pruneOurEntries(config, "plugin")) {
+      changed = true;
     }
     if (changed) {
       await this.writeJsonConfig(configPath, config);
     }
     return changed;
+  }
+
+  private static pruneOurEntries(config: Record<string, unknown>, key: string): boolean {
+    const raw: unknown = config[key];
+    if (!Array.isArray(raw)) {
+      return false;
+    }
+    const kept: unknown[] = Installer.filterOurEntries(raw, PACKAGE_NAME);
+    if (kept.length === raw.length) {
+      return false;
+    }
+    if (kept.length === 0) {
+      delete config[key];
+    } else {
+      config[key] = kept;
+    }
+    return true;
   }
 
   private async isPluginListed(configPath: string): Promise<boolean> {
