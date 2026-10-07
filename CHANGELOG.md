@@ -5,7 +5,7 @@ All notable changes to `aurelia-expert` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-10-07
 
 ### Changed
 - **Upgraded to the OpenCode v2 plugin system.** The plugin entrypoint is now an Effect-first `Plugin.define({ id, effect })` (`src/plugin.ts`, re-exported from the root `plugin.ts` and `index.ts`, declared as `exports["./server"]`), replacing the v1 `config()` hook on `@opencode-ai/plugin`. Load-time behavior is unchanged: scope-aware, manifest-gated install-on-load, read-only registration detection, once-per-session not-installed advisory, skipped-file warnings. The direct dependency is now `@opencode/plugin` (^2.0.24) with `effect` (^4.0.0-rc.112).
