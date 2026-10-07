@@ -12,7 +12,7 @@ Resolve lifecycle ordering and cross-cutting concerns through AppTask phases and
 | `hydrating` | After root view instantiated, before child compilation | Dynamic `import()` of feature code |
 | `hydrated` | After root self-hydration | Telemetry, global state, logging init |
 | `activating` | Scope hierarchy formed | Role-based feature loading |
-| `activated` | App fully running | Post-startup kicks (analytics session start) |
+| `activated` | App fully running — after root controller activation completes | Post-startup kicks (analytics session start); **no `resolve()` — see restrictions below** |
 | `deactivating` | Save state | Persist UI state before shutdown |
 | `deactivated` | Final cleanup | Release last resources |
 
@@ -38,6 +38,27 @@ Aurelia.register(
 ```
 
 `AppTask.creating` is the right default for environment-specific config. `AppTask.hydrating` for lazy `import()` of feature modules. `AppTask.hydrated` for telemetry hooks.
+
+## AppTask callback restriction: no `resolve()` in `activated`
+
+The global `resolve()` helper depends on a request-scoped active container context. That context is gone by the time the `activated` slot fires — it is the **last** phase and runs only after the root controller's `activate()` completes. Calling `resolve(Key)` inside an `AppTask.activated` callback throws **AUR0016** (`There is not a currently active container to resolve ...`) and can halt startup before the router populates `<au-viewport>`.
+
+The restriction is specific to `activated`. `resolve()` works in the earlier slots — `creating`, `hydrating`, `hydrated`, `activating` — because the resolution context is still live there. This does not affect the callback's own declared arguments: those are resolved through the AppTask's registered container regardless of slot.
+
+```typescript
+// ❌ AUR0016 — context cleared after root activation completes
+AppTask.activated(ISeoService, seo => {
+  const logger = resolve(ILogger).scopeTo('SeoService');
+  seo.initialize({ rootUrl, logger });
+});
+
+// ✅ Declare the dependency as a callback argument instead
+AppTask.activated(ILogger, ISeoService, (logger, seo) => {
+  seo.initialize({ rootUrl, logger: logger.scopeTo('SeoService') });
+});
+```
+
+If a live resolution context is required for `resolve()`, move the work to an earlier slot (`creating` / `hydrating` / `hydrated` / `activating`).
 
 ## TaskQueue primitives
 
@@ -116,5 +137,7 @@ Use `IEventAggregator` only when many unrelated subscribers truly need the same 
 ## Ground truth
 
 - `aurelia/aurelia/blob/master/packages/runtime-html/docs/app-tasks.md`
+- `aurelia/aurelia/blob/master/packages/runtime-html/src/app-root.ts` — `activated` slot fires after `_controller.activate()` resolves
+- `aurelia/aurelia/blob/master/packages/kernel/src/di.container.ts` — `resolve()` throws AUR0016 when no active container
 - `aurelia/aurelia/blob/master/packages/runtime/docs/task-queue.md`
 - `aurelia/aurelia/blob/master/packages/runtime-html/docs/event-handling.md`
