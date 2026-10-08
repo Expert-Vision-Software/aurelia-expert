@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PluginNameNormalizer } from "./plugin-name.ts";
+import { PluginEntryResolver } from "./plugin-entry.ts";
 import { InstallManifest, installManifestPath, type ManifestFileEntry } from "./manifest.ts";
 
 export { installManifestPath };
@@ -105,7 +106,25 @@ export class Installer {
     if (config === null) {
       return false;
     }
-    return Installer.namesInclude(Installer.registeredNames(config), packageName);
+    if (Installer.namesInclude(Installer.registeredNames(config), packageName)) {
+      return true;
+    }
+    const rawEntries: readonly unknown[] = [...Installer.rawPluginEntries(config)];
+    for (const entry of rawEntries) {
+      if (await PluginEntryResolver.resolvesToPackage(entry, packageName)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static rawPluginEntries(config: Record<string, unknown>): readonly unknown[] {
+    const v2: unknown = config.plugins;
+    if (Array.isArray(v2)) {
+      return v2;
+    }
+    const legacy: unknown = config.plugin;
+    return Array.isArray(legacy) ? legacy : [];
   }
 
   private static registeredNames(config: Record<string, unknown>): string[] {
@@ -155,13 +174,17 @@ export class Installer {
     return false;
   }
 
-  private static filterOurEntries(entries: readonly unknown[], packageName: string): unknown[] {
+  private static async filterOurEntries(entries: readonly unknown[], packageName: string): Promise<unknown[]> {
     const kept: unknown[] = [];
     for (const entry of entries) {
       const name: string | null = Installer.entryName(entry);
-      if (name === null || !PluginNameNormalizer.matches(name, packageName)) {
-        kept.push(entry);
+      if (name !== null && PluginNameNormalizer.matches(name, packageName)) {
+        continue;
       }
+      if (await PluginEntryResolver.resolvesToPackage(entry, packageName)) {
+        continue;
+      }
+      kept.push(entry);
     }
     return kept;
   }
@@ -349,7 +372,7 @@ export class Installer {
     const version: string | null = manifest.hasContents()
       ? manifest.version
       : await this.readLegacySkillVersion(legacySkillDir);
-    const pluginInConfig: boolean = await this.isPluginListed(join(configBase, "opencode.json"));
+    const pluginInConfig: boolean = await Installer.isPluginListedIn(join(configBase, "opencode.json"), PACKAGE_NAME);
     return { installed: true, version, legacy: !manifest.hasContents(), pluginInConfig };
   }
 
@@ -549,6 +572,12 @@ export class Installer {
     if (Installer.namesInclude(Installer.registeredNames(config), PACKAGE_NAME)) {
       return false;
     }
+    const rawEntries: readonly unknown[] = [...Installer.rawPluginEntries(config)];
+    for (const entry of rawEntries) {
+      if (await PluginEntryResolver.resolvesToPackage(entry, PACKAGE_NAME)) {
+        return false;
+      }
+    }
     const raw: unknown = config.plugins;
     if (raw !== undefined && !Array.isArray(raw)) {
       Installer.warnRefusal(configPath, `"plugins" is present but is not an array.`);
@@ -571,10 +600,10 @@ export class Installer {
       return false;
     }
     let changed: boolean = false;
-    if (Installer.pruneOurEntries(config, "plugins")) {
+    if (await Installer.pruneOurEntries(config, "plugins")) {
       changed = true;
     }
-    if (Installer.pruneOurEntries(config, "plugin")) {
+    if (await Installer.pruneOurEntries(config, "plugin")) {
       changed = true;
     }
     if (changed) {
@@ -583,12 +612,12 @@ export class Installer {
     return changed;
   }
 
-  private static pruneOurEntries(config: Record<string, unknown>, key: string): boolean {
+  private static async pruneOurEntries(config: Record<string, unknown>, key: string): Promise<boolean> {
     const raw: unknown = config[key];
     if (!Array.isArray(raw)) {
       return false;
     }
-    const kept: unknown[] = Installer.filterOurEntries(raw, PACKAGE_NAME);
+    const kept: unknown[] = await Installer.filterOurEntries(raw, PACKAGE_NAME);
     if (kept.length === raw.length) {
       return false;
     }
@@ -598,14 +627,6 @@ export class Installer {
       config[key] = kept;
     }
     return true;
-  }
-
-  private async isPluginListed(configPath: string): Promise<boolean> {
-    const config: Record<string, unknown> | null = await this.readJsonConfig(configPath);
-    if (config === null) {
-      return false;
-    }
-    return Installer.namesInclude(Installer.registeredNames(config), PACKAGE_NAME);
   }
 
   private async migrateRootConfig(projectDir: string): Promise<boolean> {
