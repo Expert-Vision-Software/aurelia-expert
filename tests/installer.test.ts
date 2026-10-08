@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { exists, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { exists, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -10,6 +10,7 @@ import {
   type Scope,
 } from "../src/installer.ts";
 import { RegistrationDetector } from "../src/registration.ts";
+import { PluginNameNormalizer } from "../src/plugin-name.ts";
 
 const PACKAGE_ROOT: string = join(import.meta.dir, "..");
 const SKILL_NAMES: readonly string[] = Installer.skillNames();
@@ -641,6 +642,100 @@ describe("regression contract table", () => {
 
   test("advisory condition met when no scope holds an install", async () => {
     expect(await RegistrationDetector.hasAnyInstallation(sandbox.projectDir)).toBe(false);
+  });
+
+  test("repo-local via file:// abs path: detect returns repo-local, scopesToEnsure is [local]", async () => {
+    const fileUrl: string = `file:///${PACKAGE_ROOT.replace("\\", "/")}`;
+    await writeConfig(sandbox.localConfigPath, { plugins: [fileUrl] });
+
+    const context = await RegistrationDetector.detect(sandbox.projectDir);
+    expect(context).toBe("repo-local");
+    expect(RegistrationDetector.scopesToEnsure(context)).toEqual(["local"]);
+  });
+
+  test("repo-local via plain abs path: detect returns repo-local, scopesToEnsure is [local]", async () => {
+    await writeConfig(sandbox.localConfigPath, { plugins: [PACKAGE_ROOT] });
+
+    const context = await RegistrationDetector.detect(sandbox.projectDir);
+    expect(context).toBe("repo-local");
+    expect(RegistrationDetector.scopesToEnsure(context)).toEqual(["local"]);
+  });
+
+  test("repo-local via object-form file:// entry: detect returns repo-local", async () => {
+    const fileUrl: string = `file:///${PACKAGE_ROOT.replace("\\", "/")}`;
+    await writeConfig(sandbox.localConfigPath, { plugins: [{ package: fileUrl, options: { enabled: true } }] });
+
+    const context = await RegistrationDetector.detect(sandbox.projectDir);
+    expect(context).toBe("repo-local");
+  });
+
+  test("unrelated package path is not detected", async () => {
+    const unrelatedPath: string = join(tmpdir(), "not-aurelia-expert", "package.json");
+    await writeConfig(sandbox.localConfigPath, { plugins: [unrelatedPath] });
+    const isListed: boolean = await Installer.isPluginListedIn(sandbox.localConfigPath, "aurelia-expert");
+    expect(isListed).toBe(false);
+  });
+
+  test("missing/non-existent path does not throw", async () => {
+    const missingPath: string = join(tmpdir(), "this-does-not-exist-12345");
+    await writeConfig(sandbox.localConfigPath, { plugins: [missingPath] });
+
+    const context = await RegistrationDetector.detect(sandbox.projectDir);
+    expect(context).toBe("none");
+  });
+
+  test("entrypoint file path resolves to containing package", async () => {
+    const entrypointPath: string = join(PACKAGE_ROOT, "index.ts");
+    await writeConfig(sandbox.localConfigPath, { plugins: [entrypointPath] });
+
+    const context = await RegistrationDetector.detect(sandbox.projectDir);
+    expect(context).toBe("repo-local");
+  });
+
+  test("symlink to package root is recognized", async () => {
+    if (process.platform === "win32") {
+      return;
+    }
+    const symlinkPath: string = join(sandbox.projectDir, `aurelia-expert-symlink-${Date.now()}`);
+    try {
+      await symlink(PACKAGE_ROOT, symlinkPath);
+      await writeConfig(sandbox.localConfigPath, { plugins: [symlinkPath] });
+
+      const context = await RegistrationDetector.detect(sandbox.projectDir);
+      expect(context).toBe("repo-local");
+    } finally {
+      if (await exists(symlinkPath)) {
+        await rm(symlinkPath, { recursive: true });
+      }
+    }
+  });
+
+  test("install upgraded action when manifest version differs for path-form registration", async () => {
+    const fileUrl: string = `file:///${PACKAGE_ROOT.replace("\\", "/")}`;
+    await writeConfig(sandbox.localConfigPath, { plugins: [fileUrl] });
+    await sandbox.installer.install("local", sandbox.projectDir, LOAD_INSTALL_OPTIONS);
+
+    const manifest: Record<string, unknown> = await readConfig(sandbox.localManifestPath);
+    manifest.version = "0.0.1";
+    await writeFile(sandbox.localManifestPath, JSON.stringify(manifest, null, 2));
+
+    const result = await sandbox.installer.install("local", sandbox.projectDir, LOAD_INSTALL_OPTIONS);
+    expect(result.action).toBe("upgraded");
+  });
+
+  test("CLI install does not add duplicate npm-name entry when path-form entry already exists", async () => {
+    const fileUrl: string = `file:///${PACKAGE_ROOT.replace("\\", "/")}`;
+    await writeConfig(sandbox.localConfigPath, { plugins: [fileUrl] });
+
+    const result = await sandbox.installer.install("local", sandbox.projectDir);
+
+    expect(result.pluginAdded).toBe(false);
+    const config: Record<string, unknown> = await readConfig(sandbox.localConfigPath);
+    const plugins: unknown[] = config.plugins as unknown[];
+    const hasNpmNameEntry: boolean = plugins.some(
+      p => typeof p === "string" && PluginNameNormalizer.matches(p, "aurelia-expert"),
+    );
+    expect(hasNpmNameEntry).toBe(false);
   });
 });
 
