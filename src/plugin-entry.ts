@@ -3,143 +3,151 @@ import { dirname, extname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PluginNameNormalizer } from "./plugin-name.ts";
 
-const MEMO_LIMIT: number = 100;
-
-const resolvedNameMemo: Map<string, string | null> = new Map();
-
-function isPathLike(entry: string): boolean {
-  return entry.startsWith("file://") || entry.startsWith(".") || isAbsolute(entry) || entry.includes("/") || entry.includes("\\");
-}
-
-function isNpmSpec(entry: string): boolean {
-  return entry.includes("@") && !entry.startsWith("file://") && !entry.startsWith(".") && !isAbsolute(entry);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-async function resolveToPackageRoot(rawEntry: string): Promise<string | null> {
-  const memoKey: string = rawEntry;
-  if (resolvedNameMemo.has(memoKey)) {
-    return resolvedNameMemo.get(memoKey) ?? null;
-  }
-
-  if (resolvedNameMemo.size >= MEMO_LIMIT) {
-    resolvedNameMemo.clear();
-  }
-
-  let targetPath: string;
-  try {
-    if (rawEntry.startsWith("file://")) {
-      targetPath = fileURLToPath(rawEntry);
-    } else {
-      targetPath = rawEntry;
-    }
-  } catch {
-    resolvedNameMemo.set(memoKey, null);
-    return null;
-  }
-
-  try {
-    const real: string = await realpath(targetPath);
-    targetPath = real;
-  } catch {
-    // realpath throws for non-existent paths; continue with original path for fs checks
-  }
-
-  let targetStats;
-  try {
-    targetStats = await lstat(targetPath);
-  } catch {
-    resolvedNameMemo.set(memoKey, null);
-    return null;
-  }
-  if (!targetStats.isFile() && !targetStats.isDirectory()) {
-    resolvedNameMemo.set(memoKey, null);
-    return null;
-  }
-
-  let packageRoot: string;
-  if (targetStats.isFile()) {
-    if (extname(targetPath) === ".json") {
-      try {
-        const content: string = await readFile(targetPath, "utf-8");
-        const pkg: { name?: unknown } = JSON.parse(content);
-        if (typeof pkg.name === "string") {
-          packageRoot = dirname(targetPath);
-          resolvedNameMemo.set(memoKey, packageRoot);
-          return packageRoot;
-        }
-      } catch {
-        // not a valid package.json; walk up
-      }
-    }
-    packageRoot = dirname(targetPath);
-  } else {
-    packageRoot = targetPath;
-  }
-
-  let current: string = packageRoot;
-  let prev: string = "";
-  while (current !== prev) {
-    const candidate: string = join(current, "package.json");
-    if (await exists(candidate)) {
-      try {
-        const content: string = await readFile(candidate, "utf-8");
-        const pkg: { name?: unknown } = JSON.parse(content);
-        if (typeof pkg.name === "string") {
-          resolvedNameMemo.set(memoKey, current);
-          return current;
-        }
-      } catch {
-        // continue walking up
-      }
-    }
-    prev = current;
-    current = dirname(current);
-  }
-
-  resolvedNameMemo.set(memoKey, null);
-  return null;
-}
-
 export class PluginEntryResolver {
+  private static readonly memoLimit: number = 100;
+
+  private static readonly resolvedNameMemo: Map<string, string | null> = new Map();
+
   static async resolvesToPackage(entry: unknown, packageName: string): Promise<boolean> {
     if (typeof entry === "string") {
-      if (isNpmSpec(entry)) {
-        return false;
-      }
-      if (!isPathLike(entry)) {
-        return false;
-      }
-      const root: string | null = await resolveToPackageRoot(entry);
-      if (root === null) {
-        return false;
-      }
-      const pkgJsonPath: string = join(root, "package.json");
-      if (!(await exists(pkgJsonPath))) {
-        return false;
-      }
-      try {
-        const content: string = await readFile(pkgJsonPath, "utf-8");
-        const pkg: { name?: unknown } = JSON.parse(content);
-        if (typeof pkg.name !== "string") {
-          return false;
-        }
-        return PluginNameNormalizer.matches(pkg.name, packageName);
-      } catch {
-        return false;
-      }
+      return PluginEntryResolver.resolvesStringEntry(entry, packageName);
     }
-
-    if (isRecord(entry)) {
-      const pkg: unknown = entry.package;
+    if (PluginEntryResolver.isRecord(entry)) {
+      const pkg: unknown = entry["package"];
       if (typeof pkg === "string") {
         return PluginEntryResolver.resolvesToPackage(pkg, packageName);
       }
     }
-
     return false;
+  }
+
+  private static async resolvesStringEntry(entry: string, packageName: string): Promise<boolean> {
+    if (!PluginEntryResolver.isPathLike(entry) || PluginEntryResolver.isNpmSpec(entry)) {
+      return false;
+    }
+    const root: string | null = await PluginEntryResolver.resolveToPackageRoot(entry);
+    if (root === null) {
+      return false;
+    }
+    const name: string | null = await PluginEntryResolver.readPackageName(join(root, "package.json"));
+    if (name === null) {
+      return false;
+    }
+    return PluginNameNormalizer.matches(name, packageName);
+  }
+
+  private static isPathLike(entry: string): boolean {
+    return entry.startsWith("file://")
+      || entry.startsWith(".")
+      || isAbsolute(entry)
+      || entry.includes("/")
+      || entry.includes("\\");
+  }
+
+  private static isNpmSpec(entry: string): boolean {
+    if (entry.startsWith("@")) {
+      return true;
+    }
+    const versionSeparator: number = entry.lastIndexOf("@");
+    if (versionSeparator <= 0) {
+      return false;
+    }
+    const versionPart: string = entry.slice(versionSeparator + 1);
+    return versionPart.length > 0 && !versionPart.includes("/");
+  }
+
+  private static isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+
+  private static async resolveToPackageRoot(rawEntry: string): Promise<string | null> {
+    const memoKey: string = rawEntry;
+    const memo: Map<string, string | null> = PluginEntryResolver.resolvedNameMemo;
+    if (memo.has(memoKey)) {
+      return memo.get(memoKey) ?? null;
+    }
+    if (memo.size >= PluginEntryResolver.memoLimit) {
+      memo.clear();
+    }
+
+    let targetPath: string;
+    try {
+      if (rawEntry.startsWith("file://")) {
+        targetPath = fileURLToPath(rawEntry);
+      } else {
+        targetPath = rawEntry;
+      }
+    } catch {
+      memo.set(memoKey, null);
+      return null;
+    }
+
+    try {
+      targetPath = await realpath(targetPath);
+    } catch {
+      targetPath = targetPath;
+    }
+    let targetStats;
+    try {
+      targetStats = await lstat(targetPath);
+    } catch {
+      memo.set(memoKey, null);
+      return null;
+    }
+    if (!targetStats.isFile() && !targetStats.isDirectory()) {
+      memo.set(memoKey, null);
+      return null;
+    }
+
+    if (targetStats.isFile()) {
+      const containingRoot: string = dirname(targetPath);
+      const entryName: string | null = extname(targetPath) === ".json"
+        ? await PluginEntryResolver.readPackageName(targetPath)
+        : null;
+      if (entryName !== null) {
+        memo.set(memoKey, containingRoot);
+        return containingRoot;
+      }
+      return await PluginEntryResolver.walkUpToPackageRoot(containingRoot, memoKey, memo);
+    }
+
+    return await PluginEntryResolver.walkUpToPackageRoot(targetPath, memoKey, memo);
+  }
+
+  private static async walkUpToPackageRoot(
+    startDir: string,
+    memoKey: string,
+    memo: Map<string, string | null>,
+  ): Promise<string | null> {
+    let current: string = startDir;
+    let prev: string = "";
+    while (current !== prev) {
+      const candidate: string = join(current, "package.json");
+      if (await exists(candidate)) {
+        const name: string | null = await PluginEntryResolver.readPackageName(candidate);
+        if (name !== null) {
+          memo.set(memoKey, current);
+          return current;
+        }
+      }
+      prev = current;
+      current = dirname(current);
+    }
+    memo.set(memoKey, null);
+    return null;
+  }
+
+  private static async readPackageName(packageJsonPath: string): Promise<string | null> {
+    try {
+      const content: string = await readFile(packageJsonPath, "utf-8");
+      const parsed: unknown = JSON.parse(content);
+      if (!PluginEntryResolver.isRecord(parsed)) {
+        return null;
+      }
+      const name: unknown = parsed["name"];
+      return typeof name === "string" ? name : null;
+    } catch {
+      return null;
+    }
   }
 }
