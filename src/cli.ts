@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { installCommand } from "./commands/install.ts";
 import { uninstallCommand } from "./commands/uninstall.ts";
 import { statusCommand } from "./commands/status.ts";
+import { clearCacheCommand } from "./commands/clear-cache.ts";
 import type { Scope } from "./installer.ts";
 
 const VERSION: string = JSON.parse(
@@ -23,6 +24,9 @@ Commands:
               install manifest used for idempotent, drift-aware re-installs
   uninstall   Remove installed skills and the plugin entry
   status      Check installation status per scope
+  clear-cache Remove this package's own npm cache keys (aurelia-expert,
+              aurelia-expert@latest, aurelia-expert@<version>) so the next
+              start re-installs a fresh generation
 
 Options:
   -s, --scope <scope>    Installation scope: "local" (default) or "global"
@@ -40,6 +44,7 @@ Examples:
   bunx aurelia-expert install --scope global
   bunx aurelia-expert uninstall --scope local
   bunx aurelia-expert status
+  bunx aurelia-expert clear-cache
 `);
 }
 
@@ -104,6 +109,9 @@ async function dispatch(
       return;
     case "status":
       await statusCommand();
+      return;
+    case "clear-cache":
+      await clearCacheCommand();
       return;
     default:
       console.error(`Unknown command: ${command}`);
