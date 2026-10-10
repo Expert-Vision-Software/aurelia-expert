@@ -1,11 +1,13 @@
 import { test, expect, describe } from "bun:test";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { parse as parseYaml } from "yaml";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import {
   isOurPluginEntry,
   normalizePluginName,
 } from "../src/installer.ts";
+import { PluginEntryResolver } from "../src/plugin-entry.ts";
+import { PluginNameNormalizer } from "../src/plugin-name.ts";
 
 const PACKAGE_ROOT: string = join(import.meta.dir, "..");
 const SKILL_NAMES: readonly string[] = [
@@ -18,18 +20,11 @@ const SKILL_NAMES: readonly string[] = [
   "aurelia-plugin",
   "aurelia-ecosystem",
 ] as const;
-const LEADING_WORDS: Record<string, string> = {
-  "aurelia-expert": "branch",
-  "aurelia-foundation": "scaffold",
-  "aurelia-runtime": "resolve",
-  "aurelia-largespa": "slice",
-  "aurelia-migration": "lift",
-  "aurelia-component-library": "assemble",
-  "aurelia-plugin": "package",
-  "aurelia-ecosystem": "wire",
-};
 const DESCRIPTION_MAX: number = 1024;
+const LEADING_WORD_WINDOW: number = 120;
 const FRONTMATTER_PATTERN: RegExp = /^---\n([\s\S]*?)\n---/;
+const FIRST_PERSON_PATTERN: RegExp = /\b(i|me|my|mine|we|our|ours|us|you|your|yours)\b/i;
+const SCALAR_LINE_PATTERN: RegExp = /^\s*([A-Za-z][\w-]*): (.+)$/;
 
 async function loadSkillFile(skillName: string, fileName: string): Promise<string> {
   const path: string = join(PACKAGE_ROOT, "skills", skillName, fileName);
@@ -41,21 +36,36 @@ function extractFrontmatter(content: string): string | null {
   return match === null ? null : match[1] ?? null;
 }
 
-function readFrontmatterField(frontmatter: string, field: string): string | null {
-  const pattern: RegExp = new RegExp(`^\\s*${field}:\\s*(.+)$`, "m");
-  const match: RegExpMatchArray | null = frontmatter.match(pattern);
-  if (match === null || match[1] === undefined) {
+function parseFrontmatterRecord(frontmatter: string): Record<string, unknown> {
+  return parseYaml(frontmatter) as Record<string, unknown>;
+}
+
+function readStringField(record: Record<string, unknown>, field: string): string | null {
+  const value: unknown = record[field];
+  return typeof value === "string" ? value : null;
+}
+
+function readMetadata(record: Record<string, unknown>): Record<string, unknown> | null {
+  const value: unknown = record["metadata"];
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return null;
   }
-  return match[1].trim();
+  return value as Record<string, unknown>;
 }
 
-function isDoubleQuoted(value: string): boolean {
-  return value.startsWith('"') && value.endsWith('"') && value.length >= 2;
+function readMetadataString(metadata: Record<string, unknown>, field: string): string | null {
+  const value: unknown = metadata[field];
+  return typeof value === "string" ? value : null;
 }
 
-function unquote(value: string): string {
-  return isDoubleQuoted(value) ? value.slice(1, -1) : value;
+function rawFieldLine(frontmatter: string, field: string): string | null {
+  const pattern: RegExp = new RegExp(`^\\s*${field}: (.+)$`);
+  for (const line of frontmatter.split("\n")) {
+    if (pattern.test(line) === true) {
+      return line;
+    }
+  }
+  return null;
 }
 
 describe("bundled skills", () => {
@@ -68,45 +78,92 @@ describe("bundled skills", () => {
         return;
       }
 
-      const skillName: string | null = readFrontmatterField(frontmatter, "name");
-      expect(skillName).not.toBeNull();
-      expect(isDoubleQuoted(skillName ?? "")).toBe(true);
-      expect(unquote(skillName ?? "")).toBe(name);
+      const parsed: Record<string, unknown> = parseFrontmatterRecord(frontmatter);
+      const skillName: string | null = readStringField(parsed, "name");
+      expect(skillName).toBe(name);
 
-      const description: string | null = readFrontmatterField(frontmatter, "description");
+      const description: string | null = readStringField(parsed, "description");
       expect(description).not.toBeNull();
       if (description === null) {
         return;
       }
-      expect(isDoubleQuoted(description)).toBe(true);
-      const unquotedDescription: string = unquote(description);
-      expect(unquotedDescription.length).toBeGreaterThan(0);
-      expect(unquotedDescription.length).toBeLessThanOrEqual(DESCRIPTION_MAX);
-      expect(unquotedDescription.toLowerCase()).toContain(LEADING_WORDS[name]);
+      expect(description.length).toBeGreaterThan(0);
+      expect(description.length).toBeLessThanOrEqual(DESCRIPTION_MAX);
+      expect(FIRST_PERSON_PATTERN.test(description)).toBe(false);
 
-      const license: string | null = readFrontmatterField(frontmatter, "license");
-      expect(license).not.toBeNull();
-      expect(isDoubleQuoted(license ?? "")).toBe(true);
-      expect(unquote(license ?? "")).toBe("MIT");
+      const metadata: Record<string, unknown> | null = readMetadata(parsed);
+      expect(metadata).not.toBeNull();
+      if (metadata === null) {
+        return;
+      }
+      const leadingWord: string | null = readMetadataString(metadata, "leading-word");
+      expect(leadingWord).not.toBeNull();
+      if (leadingWord === null) {
+        return;
+      }
+      expect(
+        description.slice(0, LEADING_WORD_WINDOW).toLowerCase(),
+      ).toContain(leadingWord.toLowerCase());
 
-      const compatibility: string | null = readFrontmatterField(frontmatter, "compatibility");
+      const license: string | null = readStringField(parsed, "license");
+      expect(license).toBe("MIT");
+
+      const compatibility: string | null = readStringField(parsed, "compatibility");
       expect(compatibility).not.toBeNull();
-      expect(isDoubleQuoted(compatibility ?? "")).toBe(true);
-      expect(unquote(compatibility ?? "")).toContain(",");
+      expect(compatibility?.includes(",")).toBe(true);
     });
 
-    test(`${name} frontmatter parses as valid YAML with string name and description`, async () => {
+    test(`${name} frontmatter double-quotes every non-boolean scalar`, async () => {
       const content: string = await loadSkillFile(name, "SKILL.md");
       const frontmatter: string | null = extractFrontmatter(content);
       expect(frontmatter).not.toBeNull();
       if (frontmatter === null) {
         return;
       }
-      const parsed: unknown = parseYaml(frontmatter);
-      const record = parsed as Record<string, unknown>;
-      expect(typeof record.name).toBe("string");
-      expect(typeof record.description).toBe("string");
-      expect(record.description as string).not.toContain(": ");
+      expect(rawFieldLine(frontmatter, "license")).toBe('license: "MIT"');
+
+      for (const line of frontmatter.split("\n")) {
+        const scalar: RegExpMatchArray | null = line.match(SCALAR_LINE_PATTERN);
+        if (scalar === null) {
+          continue;
+        }
+        const key: string = scalar[1];
+        const value: string = scalar[2];
+        if (value === "true" || value === "false") {
+          expect(key).toBe("focal-point");
+          continue;
+        }
+        expect(value.startsWith('"')).toBe(true);
+        expect(value.endsWith('"')).toBe(true);
+      }
+    });
+
+    test(`${name} frontmatter parses as valid YAML and round-trips the description`, async () => {
+      const content: string = await loadSkillFile(name, "SKILL.md");
+      const frontmatter: string | null = extractFrontmatter(content);
+      expect(frontmatter).not.toBeNull();
+      if (frontmatter === null) {
+        return;
+      }
+      const parsed: Record<string, unknown> = parseFrontmatterRecord(frontmatter);
+      const description: string | null = readStringField(parsed, "description");
+      expect(description).not.toBeNull();
+      if (description === null) {
+        return;
+      }
+
+      const descriptionLine: string | null = rawFieldLine(frontmatter, "description");
+      expect(descriptionLine).not.toBeNull();
+      if (descriptionLine === null) {
+        return;
+      }
+      const scalar: string = descriptionLine.slice("description: ".length);
+      expect(scalar.startsWith('"')).toBe(true);
+      const reparsed: Record<string, unknown> = parseFrontmatterRecord(`description: ${scalar}`);
+      expect(reparsed["description"]).toBe(description);
+
+      const roundTripped: unknown = parseYaml(stringifyYaml(parsed));
+      expect(roundTripped).toEqual(parsed);
     });
 
     test(`${name} frontmatter declares area and leading-word metadata`, async () => {
@@ -116,27 +173,22 @@ describe("bundled skills", () => {
       if (frontmatter === null) {
         return;
       }
-      expect(frontmatter).toMatch(/^metadata:\s*$/m);
-      expect(frontmatter).toMatch(/^\s+area:\s+"[^"]+"\s*$/m);
-      const leadingWord: string | null = readFrontmatterField(frontmatter, "leading-word");
-      expect(leadingWord).not.toBeNull();
-      expect(isDoubleQuoted(leadingWord ?? "")).toBe(true);
-      expect(unquote(leadingWord ?? "")).toBe(LEADING_WORDS[name]);
-    });
-
-    test(`${name} frontmatter scalar values contain no colon-space after unquoting`, async () => {
-      const content: string = await loadSkillFile(name, "SKILL.md");
-      const frontmatter: string | null = extractFrontmatter(content);
-      expect(frontmatter).not.toBeNull();
-      if (frontmatter === null) {
+      const metadata: Record<string, unknown> | null = readMetadata(parseFrontmatterRecord(frontmatter));
+      expect(metadata).not.toBeNull();
+      if (metadata === null) {
         return;
       }
-      for (const field of ["name", "description", "license", "compatibility", "area", "leading-word"]) {
-        const raw: string | null = readFrontmatterField(frontmatter, field);
-        if (raw === null) {
-          continue;
-        }
-        expect(unquote(raw)).not.toContain(": ");
+      const area: string | null = readMetadataString(metadata, "area");
+      expect(area).not.toBeNull();
+      expect(area?.length).toBeGreaterThan(0);
+      const leadingWord: string | null = readMetadataString(metadata, "leading-word");
+      expect(leadingWord).not.toBeNull();
+      expect(leadingWord?.length).toBeGreaterThan(0);
+      const focalPoint: unknown = metadata["focal-point"];
+      if (name === "aurelia-largespa") {
+        expect(focalPoint).toBe(true);
+      } else {
+        expect(focalPoint).toBeUndefined();
       }
     });
   }
@@ -149,6 +201,8 @@ describe("bundled skills", () => {
       return;
     }
     expect(frontmatter).toMatch(/ground-truth:\s+"https:\/\/docs\.aurelia\.io"/);
+    const metadata: Record<string, unknown> | null = readMetadata(parseFrontmatterRecord(frontmatter));
+    expect(metadata?.["ground-truth"]).toBe("https://docs.aurelia.io");
   });
 
   test("aurelia-largespa declares metadata.focal-point: true", async () => {
@@ -225,7 +279,7 @@ describe("reference files", () => {
 });
 
 describe("package self-config", () => {
-  test(".opencode/opencode.json uses only v2-native keys and registers opencode-architect@latest", async () => {
+  test(".opencode/opencode.json uses only v2-native keys and registers opencode-architect by name or path", async () => {
     const path: string = join(PACKAGE_ROOT, ".opencode", "opencode.json");
     const content: string = await readFile(path, "utf-8");
     const config = JSON.parse(content) as Record<string, unknown>;
@@ -236,7 +290,14 @@ describe("package self-config", () => {
     if (!Array.isArray(plugins)) {
       return;
     }
-    expect(plugins).toContain("opencode-architect@latest");
+    expect(plugins).toHaveLength(1);
+    const entry: unknown = plugins[0];
+    const nameForm: boolean =
+      typeof entry === "string" && PluginNameNormalizer.matches(entry, "opencode-architect");
+    const pathForm: boolean = nameForm
+      ? false
+      : await PluginEntryResolver.resolvesToPackage(entry, "opencode-architect");
+    expect(nameForm || pathForm).toBe(true);
   });
 
   test(".agents/skills holds dev-only skills discoverable natively by the v2 host", async () => {
