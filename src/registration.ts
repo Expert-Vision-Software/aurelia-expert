@@ -1,3 +1,4 @@
+import { exists, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   getGlobalConfigPath,
@@ -7,17 +8,20 @@ import {
   isScopeInstalled,
   type Scope,
 } from "./installer.ts";
+import { ConfigPaths } from "./config-paths.ts";
+import { ConfigWarnings } from "./config-warnings.ts";
 
 export type RegistrationContext = "none" | "global" | "repo-local" | "both";
 
 export class RegistrationDetector {
   static async detect(directory: string): Promise<RegistrationContext> {
     const packageName: string = await getPackageName();
-    const globalRegistered: boolean = await isPluginInConfig(
-      join(getGlobalConfigPath(), "opencode.json"),
+    const globalRegistered: boolean = await RegistrationDetector.isRegisteredInBase(
+      getGlobalConfigPath(),
       packageName,
     );
     const repoLocalRegistered: boolean = await RegistrationDetector.isRegisteredInRepo(directory, packageName);
+    await RegistrationDetector.adviseLegacyGlobalConfig(packageName);
 
     if (globalRegistered && repoLocalRegistered) {
       return "both";
@@ -52,12 +56,36 @@ export class RegistrationDetector {
     return isScopeInstalled(getLocalConfigPath(directory));
   }
 
+  private static async isRegisteredInBase(configBase: string, packageName: string): Promise<boolean> {
+    for (const candidate of ConfigPaths.candidates(configBase)) {
+      if (await isPluginInConfig(candidate, packageName)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private static async isRegisteredInRepo(directory: string, packageName: string): Promise<boolean> {
-    const nestedConfigPath: string = join(getLocalConfigPath(directory), "opencode.json");
-    if (await isPluginInConfig(nestedConfigPath, packageName)) {
+    const nestedBase: string = getLocalConfigPath(directory);
+    if (await RegistrationDetector.isRegisteredInBase(nestedBase, packageName)) {
       return true;
     }
-    const rootConfigPath: string = join(directory, "opencode.json");
-    return isPluginInConfig(rootConfigPath, packageName);
+    return RegistrationDetector.isRegisteredInBase(directory, packageName);
+  }
+
+  private static async adviseLegacyGlobalConfig(packageName: string): Promise<void> {
+    try {
+      const legacyPath: string = join(getGlobalConfigPath(), "config.json");
+      if (!(await exists(legacyPath))) {
+        return;
+      }
+      const content: string = await readFile(legacyPath, "utf-8");
+      if (!content.toLowerCase().includes(packageName.toLowerCase())) {
+        return;
+      }
+      ConfigWarnings.warnLegacyConfigJsonOnce(legacyPath);
+    } catch {
+      return;
+    }
   }
 }
