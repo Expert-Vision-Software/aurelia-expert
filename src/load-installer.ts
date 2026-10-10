@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 import { install, LOAD_INSTALL_OPTIONS, type InstallResult, type Scope } from "./installer.ts";
 import { RegistrationDetector, type RegistrationContext } from "./registration.ts";
+import { LoadFailureAdvisory } from "./load-failure-advisory.ts";
 
 const PLUGIN_SERVICE_NAME: string = "aurelia-expert";
 const INSTALL_ADVISORY_MESSAGE: string =
@@ -11,6 +12,8 @@ const SKIPPED_FILE_ADVISORY: string =
 
 export class LoadInstaller {
   private readonly advisoryShownDirectories: Set<string> = new Set<string>();
+
+  private readonly failureAdvisory: LoadFailureAdvisory = new LoadFailureAdvisory();
 
   run(directory: string): Effect.Effect<void> {
     return Effect.promise(() => this.ensureInstalled(directory));
@@ -29,29 +32,41 @@ export class LoadInstaller {
         this.reportSkippedFiles(result);
       }
     } catch (error) {
-      this.warn(`Load-time install failed and was skipped: ${LoadInstaller.describeError(error)}`);
+      await this.emitFailureAdvisoryOnce(error);
     }
   }
 
   private async emitInstallAdvisoryOnce(directory: string): Promise<void> {
-    if (this.advisoryShownDirectories.has(directory) || (await RegistrationDetector.hasAnyInstallation(directory))) {
+    try {
+      if (this.advisoryShownDirectories.has(directory) || (await RegistrationDetector.hasAnyInstallation(directory))) {
+        return;
+      }
+      this.advisoryShownDirectories.add(directory);
+      this.warn(INSTALL_ADVISORY_MESSAGE);
+    } catch {
       return;
     }
-    this.advisoryShownDirectories.add(directory);
-    this.warn(INSTALL_ADVISORY_MESSAGE);
+  }
+
+  private async emitFailureAdvisoryOnce(error: unknown): Promise<void> {
+    try {
+      await this.failureAdvisory.emit(error);
+    } catch {
+      return;
+    }
   }
 
   private reportSkippedFiles(result: InstallResult): void {
-    for (const skippedPath of result.skipped) {
-      this.warn(`${SKIPPED_FILE_ADVISORY}: ${skippedPath}`);
+    try {
+      for (const skippedPath of result.skipped) {
+        this.warn(`${SKIPPED_FILE_ADVISORY}: ${skippedPath}`);
+      }
+    } catch {
+      return;
     }
   }
 
   private warn(message: string): void {
     console.warn(`[${PLUGIN_SERVICE_NAME}] ${message}`);
-  }
-
-  private static describeError(error: unknown): string {
-    return error instanceof Error ? error.message : String(error);
   }
 }
