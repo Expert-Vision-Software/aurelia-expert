@@ -1,12 +1,12 @@
 ---
-name: aurelia-ecosystem
-description: Wire first-party Aurelia v2 plugins and ecosystem concerns into an app — picks the right reference for HTTP/fetch-client, validation, dialog, state, i18n, forms, testing, and SSR/prerendering. Use when adding @aurelia/fetch-client, @aurelia/validation, @aurelia/dialog, @aurelia/state, or @aurelia/i18n; writing Vitest + @aurelia/testing component tests; binding forms with model.bind/matcher.bind; or configuring server-side rendering, prerendering, hydration, sitemap/robots, and client takeover. Leading word — wire.
-license: MIT
-compatibility: opencode, claude-code, and any skill-compatible agent
+name: "aurelia-ecosystem"
+description: "Wire first-party Aurelia v2 plugins and ecosystem concerns into an app — picks the right reference for HTTP/fetch-client, validation, dialog, state, i18n, forms, testing, and SSR/prerendering. Use when adding @aurelia/fetch-client, @aurelia/validation, @aurelia/dialog, @aurelia/state, or @aurelia/i18n; writing Vitest + @aurelia/testing component tests; binding forms with model.bind/matcher.bind; or configuring server-side rendering, prerendering, hydration, sitemap/robots, and client takeover. Leading word — wire."
+license: "MIT"
+compatibility: "opencode, claude-code, and any skill-compatible agent"
 metadata:
-  area: ecosystem
-  sub-areas: ssr, fetch-client, validation, dialog, state, i18n, forms, testing
-  leading-word: wire
+  area: "ecosystem"
+  sub-areas: "ssr, fetch-client, validation, dialog, state, i18n, forms, testing"
+  leading-word: "wire"
   ground-truth: "https://docs.aurelia.io"
 ---
 

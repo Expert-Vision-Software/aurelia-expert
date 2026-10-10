@@ -1,12 +1,12 @@
 ---
-name: aurelia-runtime
-description: Use when wiring an Aurelia v2 component — resolves dependency injection, routing, navigation, AppTasks, custom events, and cross-feature orchestration. Use when injecting services, configuring `@route`, navigating programmatically, sharing state between features, declaring AppTasks, or paginating components. Leading word — resolve.
-license: MIT
-compatibility: opencode, claude-code, and any skill-compatible agent
+name: "aurelia-runtime"
+description: "Use when wiring an Aurelia v2 component — resolves dependency injection, routing, navigation, AppTasks, custom events, and cross-feature orchestration. Use when injecting services, configuring `@route`, navigating programmatically, sharing state between features, declaring AppTasks, or paginating components. Leading word — resolve."
+license: "MIT"
+compatibility: "opencode, claude-code, and any skill-compatible agent"
 metadata:
-  area: runtime
-  sub-areas: di, routing, events-tasks, orchestration
-  leading-word: resolve
+  area: "runtime"
+  sub-areas: "di, routing, events-tasks, orchestration"
+  leading-word: "resolve"
   ground-truth: "https://docs.aurelia.io"
 ---
 

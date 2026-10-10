@@ -1,13 +1,13 @@
 ---
-name: aurelia-migration
-description: Use when lifting Aurelia v1 code to v2, debugging v2 errors, or citing canonical Aurelia docs. Use when migrating from Aurelia 1, replacing PLATFORM.moduleName, switching configureRouter to @route, swapping .delegate for .trigger, fixing AUR0xxx error codes, optimizing performance with .to-view / batch(), or producing DeepWiki deep-links. Leading word — lift.
-license: MIT
-compatibility: opencode, claude-code, and any skill-compatible agent
+name: "aurelia-migration"
+description: "Use when lifting Aurelia v1 code to v2, debugging v2 errors, or citing canonical Aurelia docs. Use when migrating from Aurelia 1, replacing PLATFORM.moduleName, switching configureRouter to @route, swapping .delegate for .trigger, fixing AUR0xxx error codes, optimizing performance with .to-view / batch(), or producing DeepWiki deep-links. Leading word — lift."
+license: "MIT"
+compatibility: "opencode, claude-code, and any skill-compatible agent"
 metadata:
-  area: migration
-  sub-areas: v1-removals, debugging, performance, deepwiki-protocol
-  leading-word: lift
-  ground-truth: aurelia/aurelia/blob/master/packages/<pkg>/docs/<file>.md
+  area: "migration"
+  sub-areas: "v1-removals, debugging, performance, deepwiki-protocol"
+  leading-word: "lift"
+  ground-truth: "aurelia/aurelia/blob/master/packages/<pkg>/docs/<file>.md"
 ---
 
 # Aurelia Migration & Reference

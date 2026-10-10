@@ -1,12 +1,12 @@
 ---
-name: aurelia-largespa
-description: Use when structuring a large Aurelia v2 SPA — slices the app into feature-first pages/, features/, shared/. Use when organizing folders for an enterprise Aurelia 2 app, choosing between technical-layer vs feature-first layout, configuring hierarchical Agents.md, applying thin-page orchestrators, picking service-as-store, deciding the model/DTO boundary, or referencing au-northwind structurally. Leading word — slice.
-license: MIT
-compatibility: opencode, claude-code, and any skill-compatible agent
+name: "aurelia-largespa"
+description: "Use when structuring a large Aurelia v2 SPA — slices the app into feature-first pages/, features/, shared/. Use when organizing folders for an enterprise Aurelia 2 app, choosing between technical-layer vs feature-first layout, configuring hierarchical Agents.md, applying thin-page orchestrators, picking service-as-store, deciding the model/DTO boundary, or referencing au-northwind structurally. Leading word — slice."
+license: "MIT"
+compatibility: "opencode, claude-code, and any skill-compatible agent"
 metadata:
-  area: largespa
-  sub-areas: feature-first, pages-vs-features, shared, feature-module, hierarchical-agents-md, orchestrator, service-as-store, model-dto, lazy-loading
-  leading-word: slice
+  area: "largespa"
+  sub-areas: "feature-first, pages-vs-features, shared, feature-module, hierarchical-agents-md, orchestrator, service-as-store, model-dto, lazy-loading"
+  leading-word: "slice"
   focal-point: true
   ground-truth: "https://docs.aurelia.io"
 ---
