@@ -5,9 +5,10 @@ import { join } from "node:path";
 import type { Plugin } from "@opencode/plugin/effect";
 import { Effect } from "effect";
 import { installManifestPath } from "../src/installer.ts";
-import plugin from "../plugin.ts";
+import plugin from "../src/plugin.ts";
 import indexExport from "../index.ts";
-import pluginSourceExport from "../src/plugin.ts";
+
+const PACKAGE_ROOT: string = join(import.meta.dir, "..");
 
 interface Sandbox {
   projectDir: string;
@@ -68,9 +69,11 @@ describe("v2 plugin shape", () => {
     expect(typeof plugin.effect).toBe("function");
   });
 
-  test("root plugin.ts and index.ts re-export the v2 plugin", () => {
-    expect(pluginSourceExport).toBe(plugin);
+  test("index.ts re-exports exactly the src plugin default and root plugin.ts is gone", async () => {
     expect(indexExport).toBe(plugin);
+    expect(indexExport.id).toBe(plugin.id);
+    expect(indexExport.effect).toBe(plugin.effect);
+    expect(await exists(join(PACKAGE_ROOT, "plugin.ts"))).toBe(false);
   });
 });
 
