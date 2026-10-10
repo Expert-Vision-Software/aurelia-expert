@@ -1,35 +1,28 @@
+import { exists, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   getGlobalConfigPath,
   getLocalConfigPath,
   getPackageName,
+  isPluginInConfig,
   isScopeInstalled,
-  pluginRegistrationForBase,
-  type PluginRegistration,
   type Scope,
 } from "./installer.ts";
+import { ConfigPaths } from "./config-paths.ts";
+import { ConfigWarnings } from "./config-warnings.ts";
 
-export type RegistrationContext = "none" | "unknown" | "global" | "repo-local" | "both";
+export type RegistrationContext = "none" | "global" | "repo-local" | "both";
 
 export class RegistrationDetector {
   static async detect(directory: string): Promise<RegistrationContext> {
     const packageName: string = await getPackageName();
-    const globalRegistration: PluginRegistration = await pluginRegistrationForBase(
+    const globalRegistered: boolean = await RegistrationDetector.isRegisteredInBase(
       getGlobalConfigPath(),
       packageName,
     );
-    if (globalRegistration === "unknown") {
-      return "unknown";
-    }
-    const repoRegistration: PluginRegistration = await RegistrationDetector.repoRegistration(
-      directory,
-      packageName,
-    );
-    if (repoRegistration === "unknown") {
-      return "unknown";
-    }
-    const globalRegistered: boolean = globalRegistration === "registered";
-    const repoLocalRegistered: boolean = repoRegistration === "registered";
+    const repoLocalRegistered: boolean = await RegistrationDetector.isRegisteredInRepo(directory, packageName);
+    await RegistrationDetector.adviseLegacyGlobalConfig(packageName);
+
     if (globalRegistered && repoLocalRegistered) {
       return "both";
     }
@@ -63,24 +56,36 @@ export class RegistrationDetector {
     return isScopeInstalled(getLocalConfigPath(directory));
   }
 
-  private static async repoRegistration(directory: string, packageName: string): Promise<PluginRegistration> {
-    const nestedRegistration: PluginRegistration = await pluginRegistrationForBase(
-      getLocalConfigPath(directory),
-      packageName,
-    );
-    if (nestedRegistration === "unknown") {
-      return "unknown";
+  private static async isRegisteredInBase(configBase: string, packageName: string): Promise<boolean> {
+    for (const candidate of ConfigPaths.candidates(configBase)) {
+      if (await isPluginInConfig(candidate, packageName)) {
+        return true;
+      }
     }
-    if (nestedRegistration === "registered") {
-      return "registered";
+    return false;
+  }
+
+  private static async isRegisteredInRepo(directory: string, packageName: string): Promise<boolean> {
+    const nestedBase: string = getLocalConfigPath(directory);
+    if (await RegistrationDetector.isRegisteredInBase(nestedBase, packageName)) {
+      return true;
     }
-    const rootRegistration: PluginRegistration = await pluginRegistrationForBase(directory, packageName);
-    if (rootRegistration === "unknown") {
-      return "unknown";
+    return RegistrationDetector.isRegisteredInBase(directory, packageName);
+  }
+
+  private static async adviseLegacyGlobalConfig(packageName: string): Promise<void> {
+    try {
+      const legacyPath: string = join(getGlobalConfigPath(), "config.json");
+      if (!(await exists(legacyPath))) {
+        return;
+      }
+      const content: string = await readFile(legacyPath, "utf-8");
+      if (!content.toLowerCase().includes(packageName.toLowerCase())) {
+        return;
+      }
+      ConfigWarnings.warnLegacyConfigJsonOnce(legacyPath);
+    } catch {
+      return;
     }
-    if (rootRegistration === "registered") {
-      return "registered";
-    }
-    return "unregistered";
   }
 }

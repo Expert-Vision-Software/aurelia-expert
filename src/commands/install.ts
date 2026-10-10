@@ -16,6 +16,7 @@ export async function installCommand(options: InstallOptions): Promise<void> {
   const result = await install(scope, process.cwd(), {
     addPluginConfig: true,
     migrateRootConfig: options.migrateRootConfig,
+    configurePermissions: true,
     force: options.force,
   });
 

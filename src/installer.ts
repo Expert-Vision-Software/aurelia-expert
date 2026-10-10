@@ -4,6 +4,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PluginNameNormalizer } from "./plugin-name.ts";
 import { PluginEntryResolver } from "./plugin-entry.ts";
+import { ConfigPaths } from "./config-paths.ts";
+import { ConfigSpliceWriter } from "./config-splice-writer.ts";
+import { ConfigWarnings } from "./config-warnings.ts";
+import { JsoncParser } from "./jsonc.ts";
+import { NpmCachePruner } from "./npm-cache-pruner.ts";
 import { InstallManifest, installManifestPath, type ManifestFileEntry } from "./manifest.ts";
 
 export { installManifestPath };
@@ -13,6 +18,7 @@ export type Scope = "global" | "local";
 export interface InstallOptions {
   addPluginConfig: boolean;
   migrateRootConfig: boolean;
+  configurePermissions: boolean;
   force: boolean;
 }
 
@@ -69,15 +75,19 @@ const SKILL_NAMES: readonly string[] = [
 
 const PACKAGE_NAME: string = "aurelia-expert";
 
+const LITERAL_VERSION_FALLBACK: string = "<version>";
+
 export const DEFAULT_INSTALL_OPTIONS: InstallOptions = {
   addPluginConfig: true,
   migrateRootConfig: true,
+  configurePermissions: true,
   force: false,
 };
 
 export const LOAD_INSTALL_OPTIONS: InstallOptions = {
   addPluginConfig: false,
   migrateRootConfig: false,
+  configurePermissions: false,
   force: false,
 };
 
@@ -102,7 +112,7 @@ export class Installer {
   }
 
   static async isPluginListedIn(configPath: string, packageName: string): Promise<boolean> {
-    const config: Record<string, unknown> | null = await new Installer().readJsonConfig(configPath);
+    const config: Record<string, unknown> | null = await Installer.readConfigForDetection(configPath);
     if (config === null) {
       return false;
     }
@@ -112,6 +122,34 @@ export class Installer {
     const rawEntries: readonly unknown[] = [...Installer.rawPluginEntries(config)];
     for (const entry of rawEntries) {
       if (await PluginEntryResolver.resolvesToPackage(entry, packageName)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static async readConfigForDetection(configPath: string): Promise<Record<string, unknown> | null> {
+    let content: string;
+    try {
+      content = await readFile(configPath, "utf-8");
+    } catch (error) {
+      if (Installer.isFileNotFoundError(error)) {
+        return {};
+      }
+      ConfigWarnings.warnUnparseableOnce(configPath);
+      return null;
+    }
+    const parsed: unknown = JsoncParser.parse(content);
+    if (parsed === null || !Installer.isRecord(parsed)) {
+      ConfigWarnings.warnUnparseableOnce(configPath);
+      return null;
+    }
+    return parsed;
+  }
+
+  private static async isRegisteredInAnyCandidate(configBase: string, packageName: string): Promise<boolean> {
+    for (const candidate of ConfigPaths.candidates(configBase)) {
+      if (await Installer.isPluginListedIn(candidate, packageName)) {
         return true;
       }
     }
@@ -174,21 +212,6 @@ export class Installer {
     return false;
   }
 
-  private static async filterOurEntries(entries: readonly unknown[], packageName: string): Promise<unknown[]> {
-    const kept: unknown[] = [];
-    for (const entry of entries) {
-      const name: string | null = Installer.entryName(entry);
-      if (name !== null && PluginNameNormalizer.matches(name, packageName)) {
-        continue;
-      }
-      if (await PluginEntryResolver.resolvesToPackage(entry, packageName)) {
-        continue;
-      }
-      kept.push(entry);
-    }
-    return kept;
-  }
-
   static skillNames(): readonly string[] {
     return SKILL_NAMES;
   }
@@ -219,7 +242,7 @@ export class Installer {
     const configBase: string = scope === "global"
       ? this.getGlobalConfigPath()
       : this.getLocalConfigPath(projectDir);
-    const configPath: string = join(configBase, "opencode.json");
+    const configPath: string = ConfigPaths.writableConfigPath(configBase);
     const manifestPath: string = installManifestPath(configBase, PACKAGE_NAME);
 
     let migrated: boolean = false;
@@ -297,13 +320,17 @@ export class Installer {
     }
 
     let permissionConfigured: boolean = false;
-    if (action !== "noop") {
+    if (options.configurePermissions) {
       permissionConfigured = await this.ensureSkillPermissions(configPath, SKILL_NAMES);
     }
 
     let pluginAdded: boolean = false;
     if (options.addPluginConfig) {
       pluginAdded = await this.addPluginIfMissing(configPath);
+    }
+
+    if (options.configurePermissions) {
+      await this.pruneOwnNpmCacheGenerations(version);
     }
 
     return {
@@ -323,7 +350,7 @@ export class Installer {
     const configBase: string = scope === "global"
       ? this.getGlobalConfigPath()
       : this.getLocalConfigPath(projectDir);
-    const configPath: string = join(configBase, "opencode.json");
+    const configPath: string = ConfigPaths.writableConfigPath(configBase);
 
     const removed: string[] = [];
     for (const name of SKILL_NAMES) {
@@ -372,7 +399,7 @@ export class Installer {
     const version: string | null = manifest.hasContents()
       ? manifest.version
       : await this.readLegacySkillVersion(legacySkillDir);
-    const pluginInConfig: boolean = await Installer.isPluginListedIn(join(configBase, "opencode.json"), PACKAGE_NAME);
+    const pluginInConfig: boolean = await Installer.isRegisteredInAnyCandidate(configBase, PACKAGE_NAME);
     return { installed: true, version, legacy: !manifest.hasContents(), pluginInConfig };
   }
 
@@ -388,9 +415,32 @@ export class Installer {
     const planned: PlannedSkillFile[] = [];
     for (const name of SKILL_NAMES) {
       const skillSource: string = join(this.packageDir, "skills", name);
-      planned.push(...await Installer.collectNestedFiles(skillSource, join("skills", name)));
+      try {
+        planned.push(...await Installer.collectNestedFiles(skillSource, join("skills", name)));
+      } catch (error) {
+        if (Installer.isFileNotFoundError(error)) {
+          throw new Error(await this.describeMissingSkillSource(skillSource));
+        }
+        throw error;
+      }
     }
     return planned;
+  }
+
+  private async describeMissingSkillSource(skillSource: string): Promise<string> {
+    let version: string = LITERAL_VERSION_FALLBACK;
+    try {
+      version = await this.getPackageVersion();
+    } catch {
+      version = LITERAL_VERSION_FALLBACK;
+    }
+    const cacheKeyPath: string = join(NpmCachePruner.cacheBase(), `${PACKAGE_NAME}@${version}`);
+    return (
+      `Bundled skill directory is missing: ${skillSource} (${PACKAGE_NAME}@${version}). ` +
+      `The package installation or its npm cache generation is incomplete. ` +
+      `Remove the cache key directory ${cacheKeyPath} and re-run ` +
+      `"bunx ${PACKAGE_NAME} install --scope global" to reinstall.`
+    );
   }
 
   private static async collectNestedFiles(directory: string, relativeBase: string): Promise<PlannedSkillFile[]> {
@@ -405,6 +455,16 @@ export class Installer {
       }
     }
     return planned;
+  }
+
+  private async pruneOwnNpmCacheGenerations(version: string): Promise<void> {
+    try {
+      const pruner: NpmCachePruner = new NpmCachePruner(PACKAGE_NAME, version);
+      await pruner.prune();
+    } catch (error) {
+      const reason: string = error instanceof Error ? error.message : String(error);
+      console.warn(`[${PACKAGE_NAME}] npm cache pruning failed and was skipped: ${reason}`);
+    }
   }
 
   private async removeStaleVersionMarkers(skillsBase: string): Promise<void> {
@@ -460,16 +520,26 @@ export class Installer {
     }
   }
 
+  private async readLooseJsonConfig(path: string): Promise<Record<string, unknown> | null> {
+    let content: string;
+    try {
+      content = await readFile(path, "utf-8");
+    } catch (error) {
+      if (Installer.isFileNotFoundError(error)) {
+        return {};
+      }
+      return null;
+    }
+    const parsed: unknown = JsoncParser.parse(content);
+    if (parsed === null || !Installer.isRecord(parsed)) {
+      return null;
+    }
+    return parsed;
+  }
+
   private async writeJsonConfig(path: string, config: Record<string, unknown>): Promise<void> {
     await mkdir(join(path, ".."), { recursive: true });
     await writeFile(path, JSON.stringify(config, null, 2));
-  }
-
-  private static warnRefusal(configPath: string, reason: string): void {
-    console.warn(
-      `[${PACKAGE_NAME}] Refusing to write ${configPath}: ${reason} ` +
-        `Fix or remove the file, then re-run install. The file was left unchanged.`,
-    );
   }
 
   private async ensureSkillPermissions(
@@ -478,39 +548,38 @@ export class Installer {
   ): Promise<boolean> {
     const config: Record<string, unknown> | null = await this.readJsonConfig(configPath);
     if (config === null) {
-      Installer.warnRefusal(configPath, "the file is not valid JSON.");
+      ConfigWarnings.refusal(configPath, "the file is not valid JSON.");
       return false;
     }
-    let changed: boolean = false;
     const raw: unknown = config.permissions;
-    if (raw === undefined) {
-      config.permissions = skillNames.map(name => Installer.skillAllowRule(name));
-      changed = true;
-    } else if (Array.isArray(raw)) {
-      const rules: unknown[] = raw;
-      for (const name of skillNames) {
-        if (!rules.some(rule => Installer.ruleAllowsSkill(rule, name))) {
-          rules.push(Installer.skillAllowRule(name));
-          changed = true;
-        }
-      }
-    } else {
-      Installer.warnRefusal(configPath, `"permissions" is present but is not an array.`);
+    if (raw !== undefined && !Array.isArray(raw)) {
+      ConfigWarnings.refusal(configPath, `"permissions" is present but is not an array.`);
       return false;
     }
-    if (Installer.migrateLegacySkillPermissions(config, skillNames)) {
+    const existingRules: unknown[] = Array.isArray(raw) ? raw : [];
+    const missingRules: PermissionRule[] = skillNames
+      .filter(name => !existingRules.some(rule => Installer.ruleAllowsSkill(rule, name)))
+      .map(name => Installer.skillAllowRule(name));
+    const writer: ConfigSpliceWriter = new ConfigSpliceWriter(configPath);
+    let changed: boolean = false;
+    if (missingRules.length > 0) {
+      const appended: boolean = await writer.appendToArray("permissions", missingRules);
+      if (!appended) {
+        return false;
+      }
       changed = true;
     }
-    if (changed) {
-      await this.writeJsonConfig(configPath, config);
+    if (await Installer.migrateLegacySkillPermissions(writer, config, skillNames)) {
+      changed = true;
     }
     return changed;
   }
 
-  private static migrateLegacySkillPermissions(
+  private static async migrateLegacySkillPermissions(
+    writer: ConfigSpliceWriter,
     config: Record<string, unknown>,
     skillNames: readonly string[],
-  ): boolean {
+  ): Promise<boolean> {
     const legacy: unknown = config.permission;
     if (!Installer.isRecord(legacy)) {
       return false;
@@ -519,23 +588,23 @@ export class Installer {
     if (!Installer.isRecord(skill)) {
       return false;
     }
-    let removed: boolean = false;
-    for (const name of skillNames) {
-      if (skill[name] !== undefined) {
-        delete skill[name];
-        removed = true;
-      }
-    }
-    if (!removed) {
+    const ownedRecordNames: string[] = skillNames.filter(name => skill[name] !== undefined);
+    if (ownedRecordNames.length === 0) {
       return false;
     }
-    if (Object.keys(skill).length === 0) {
-      delete legacy.skill;
+    const skillFullyOwned: boolean = Object.keys(skill).length === ownedRecordNames.length;
+    const permissionFullyOwned: boolean = skillFullyOwned && Object.keys(legacy).length === 1;
+    let changed: boolean = false;
+    if (!skillFullyOwned) {
+      changed = await writer.removeMembers(["permission", "skill"], ownedRecordNames) || changed;
     }
-    if (Object.keys(legacy).length === 0) {
-      delete config.permission;
+    if (skillFullyOwned) {
+      changed = await writer.removeMembers(["permission"], ["skill"]) || changed;
     }
-    return true;
+    if (permissionFullyOwned) {
+      changed = await writer.removeMembers([], ["permission"]) || changed;
+    }
+    return changed;
   }
 
   private static skillAllowRule(name: string): PermissionRule {
@@ -566,7 +635,7 @@ export class Installer {
   private async addPluginIfMissing(configPath: string): Promise<boolean> {
     const config: Record<string, unknown> | null = await this.readJsonConfig(configPath);
     if (config === null) {
-      Installer.warnRefusal(configPath, "the file is not valid JSON.");
+      ConfigWarnings.refusal(configPath, "the file is not valid JSON.");
       return false;
     }
     if (Installer.namesInclude(Installer.registeredNames(config), PACKAGE_NAME)) {
@@ -580,53 +649,40 @@ export class Installer {
     }
     const raw: unknown = config.plugins;
     if (raw !== undefined && !Array.isArray(raw)) {
-      Installer.warnRefusal(configPath, `"plugins" is present but is not an array.`);
+      ConfigWarnings.refusal(configPath, `"plugins" is present but is not an array.`);
       return false;
     }
-    const plugins: unknown[] = Array.isArray(raw) ? raw : [];
-    plugins.push(PluginNameNormalizer.canonicalize(PACKAGE_NAME));
-    config.plugins = plugins;
-    await this.writeJsonConfig(configPath, config);
-    return true;
+    const jsoncSibling: string | null = ConfigPaths.jsoncSiblingOf(configPath);
+    if (jsoncSibling !== null && await Installer.isPluginListedIn(jsoncSibling, PACKAGE_NAME)) {
+      return false;
+    }
+    const writer: ConfigSpliceWriter = new ConfigSpliceWriter(configPath);
+    return writer.appendToArray("plugins", [PluginNameNormalizer.canonicalize(PACKAGE_NAME)]);
   }
 
   private async removePluginFromConfig(configPath: string): Promise<boolean> {
-    const config: Record<string, unknown> | null = await this.readJsonConfig(configPath);
+    const config: Record<string, unknown> | null = await this.readLooseJsonConfig(configPath);
     if (config === null) {
-      console.warn(
-        `[${PACKAGE_NAME}] Refusing to write ${configPath}: the file is not valid JSON. ` +
-          `Fix or remove the file manually. The file was left unchanged.`,
-      );
+      ConfigWarnings.refusal(configPath, "the file is not valid JSON.");
       return false;
     }
+    const writer: ConfigSpliceWriter = new ConfigSpliceWriter(configPath);
     let changed: boolean = false;
-    if (await Installer.pruneOurEntries(config, "plugins")) {
+    if (await writer.removeArrayElements("plugins", entry => Installer.isOwnedEntry(entry))) {
       changed = true;
     }
-    if (await Installer.pruneOurEntries(config, "plugin")) {
+    if (await writer.removeArrayElements("plugin", entry => Installer.isOwnedEntry(entry))) {
       changed = true;
-    }
-    if (changed) {
-      await this.writeJsonConfig(configPath, config);
     }
     return changed;
   }
 
-  private static async pruneOurEntries(config: Record<string, unknown>, key: string): Promise<boolean> {
-    const raw: unknown = config[key];
-    if (!Array.isArray(raw)) {
-      return false;
+  private static async isOwnedEntry(entry: unknown): Promise<boolean> {
+    const name: string | null = Installer.entryName(entry);
+    if (name !== null && PluginNameNormalizer.matches(name, PACKAGE_NAME)) {
+      return true;
     }
-    const kept: unknown[] = await Installer.filterOurEntries(raw, PACKAGE_NAME);
-    if (kept.length === raw.length) {
-      return false;
-    }
-    if (kept.length === 0) {
-      delete config[key];
-    } else {
-      config[key] = kept;
-    }
-    return true;
+    return PluginEntryResolver.resolvesToPackage(entry, PACKAGE_NAME);
   }
 
   private async migrateRootConfig(projectDir: string): Promise<boolean> {
