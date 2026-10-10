@@ -24,9 +24,10 @@ package, installed idempotently at plugin load. Maintainer scope: this repositor
 
 ## Layout & docs
 
-- Domain language: [CONTEXT.md](CONTEXT.md). Decisions: `docs/adr/0001`–`0005`
+- Domain language: [CONTEXT.md](CONTEXT.md). Decisions: `docs/adr/0001`–`0007`
   (routing shape, markdown-only bundle, canonical-file rule, ground-truth
-  validation, installer-owned config).
+  validation, installer-owned config, v2 key migration, load path never writes
+  consumer config).
 - Eight skills under `skills/<name>/SKILL.md`; frontmatter is the index
   (leading word, references, focal point).
 - Content governance: a prohibition originates only in its canonical file; changing
