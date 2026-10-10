@@ -11,7 +11,7 @@
 
 # aurelia-expert
 
-[![OpenCode Plugin](https://img.shields.io/badge/OpenCode-Plugin-blue?link=https://opencode.ai)](https://opencode.ai) [![npm version](https://img.shields.io/npm/v/aurelia-expert?label=npm)](https://www.npmjs.com/package/aurelia-expert) [![MIT License](https://img.shields.io/badge/License-MIT-green?link=LICENSE)](LICENSE) [![Bun Runtime](https://img.shields.io/badge/Bun-Runtime-orange?link=https://bun.sh)](https://bun.sh) [![Platforms](https://img.shields.io/badge/Platforms-Windows%7CmacOS%7CLinux-lightgrey)](https://bun.sh)
+[![OpenCode Plugin](https://img.shields.io/badge/OpenCode-Plugin-blue?link=https://opencode.ai)](https://opencode.ai) [![npm version](https://img.shields.io/npm/v/aurelia-expert?label=npm)](https://www.npmjs.com/package/aurelia-expert) [![MIT License](https://img.shields.io/badge/License-MIT-green?link=LICENSE)](LICENSE) [![Bun Runtime](https://img.shields.io/badge/Bun-Runtime-orange?link=https://bun.sh)](https://bun.sh) [![Platforms](https://img.shields.io/badge/Platforms-Windows%7CmacOS%7CLinux-lightgrey)](https://bun.sh) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Expert-Vision-Software/aurelia-expert)
 
 **Eight router-routed Aurelia v2 MVVM skills for AI coding agents**
 
