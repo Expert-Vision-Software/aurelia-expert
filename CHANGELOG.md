@@ -5,6 +5,22 @@ All notable changes to `aurelia-expert` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Path-form self-registration detection.** Registration detection recognizes `plugins`/`plugin` entries that are `file://` URLs or filesystem paths resolving to this package — the package root, an entrypoint file such as `index.ts`, a `package.json`, or a symlink — by the resolved `package.json` `name`, with the same normalization as bare names. Best-effort and read-only: unresolvable or missing paths never match and never throw. `bunx aurelia-expert install` recognizes existing path-form entries instead of adding a duplicate npm-name entry beside them.
+- **`bunx aurelia-expert clear-cache`** plus install-time pruning of this package's own npm cache generations (`aurelia-expert`, `aurelia-expert@latest`, `aurelia-expert@<version>`) — self-only, warn-and-continue; the load hook instructs and never deletes.
+- **Failure advisory hardened:** emitted at most once per process under its own guard, independent of the not-installed advisory, naming the remediation command (`bunx aurelia-expert install --scope global`) and the package-qualified npm cache key, with a literal `<version>` fallback when package metadata is unavailable. Missing bundled skill sources error with the path, package version, cache directory, and reinstall command — CLI hard-exits, load warns.
+- Detection now reads `opencode.json` **and** `opencode.jsonc`, warns once per path on unparseable candidates, and advises read-only when a legacy global `config.json` mentions the package.
+- `tests/v2-host.test.ts` and `tests/fixture-config-schema.test.ts` — v2 host-contract and `@opencode/schema` `Config.Info` decoding harnesses; `tests/config-splice.test.ts` and `tests/advisory.test.ts` for the writer and advisory contracts.
+
+### Changed
+- **Load-time installs never write consumer config.** Permission-ruleset writes and legacy `permission.skill` migration are gated behind explicit CLI installs (`configurePermissions`); the load path performs zero config writes (ADR-0007, refining ADR-0005).
+- **Config edits are byte-preserving text splices.** `plugins`/`permissions` mutations anchor into the raw file text and preserve every other byte — comments, indentation, key order — refusing to write when no anchor exists instead of reformatting the file.
+- **Entrypoint restructured:** `index.ts` default-re-exports `src/plugin.ts` directly; the root `plugin.ts` shim is removed. `package.json` declares `content: "code"`, `exports` for both `.` and `./server`, drops the deleted shim from `files`, and moves `@opencode/plugin` to `latest` (2.0.26). `effect` intentionally stays on the `^4.0.0-rc.112` caret the entire `@opencode` plugin stack pins — `latest` (4.0.2) would fork Effect across the plugin boundary.
+- **Skill frontmatter values are double-quoted** across all eight skills (native booleans stay bare); the contract tests parse frontmatter as YAML and assert quoting.
+- Consumer docs realigned: README badges collapsed to a single row under the title with canonical `aurelia-expert@latest` snippets; CONTRIBUTING rewritten against the current surface (v1 `plugin`-key snippet and stale v1 prose removed); release workflow verifies the publishable tarball with `npm pack --dry-run` before publishing.
+
 ## [1.0.0] - 2026-10-07
 
 ### Changed
