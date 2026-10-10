@@ -1,253 +1,308 @@
-import { PluginNameNormalizer } from "./plugin-name.ts";
-import { JsoncScanner, type JsonArrayElementSpan, type JsonMemberSpan } from "./jsonc-scanner.ts";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
+import { ConfigTextScanner, type ElementRegion, type MemberRegion } from "./config-text-scanner.ts";
+import { ConfigWarnings } from "./config-warnings.ts";
+import { JsoncParser } from "./jsonc.ts";
 
-export interface SpliceResult {
+interface RawFileState {
+  present: boolean;
+  text: string | null;
+}
+
+interface TextEdit {
+  start: number;
+  end: number;
+  replacement: string;
+}
+
+interface Insertion {
+  index: number;
   text: string;
-  changed: boolean;
 }
 
 export class ConfigSpliceWriter {
-  private readonly text: string;
-  private readonly scanner: JsoncScanner;
-  private readonly originalParsed: unknown | null;
+  private readonly configPath: string;
 
-  constructor(text: string) {
-    this.text = text;
-    this.scanner = new JsoncScanner(text);
-    this.originalParsed = JsoncScanner.parseLenient(text);
+  constructor(configPath: string) {
+    this.configPath = configPath;
   }
 
-  hasParseableSource(): boolean {
-    return this.originalParsed !== null;
-  }
-
-  addPluginEntry(packageName: string, canonicalEntry: string): SpliceResult | null {
-    const root: number = this.scanner.rootObjectStart();
-    if (root < 0) {
-      return null;
+  async appendToArray(key: string, entries: readonly unknown[]): Promise<boolean> {
+    const state: RawFileState = await this.readRawState();
+    if (!state.present) {
+      return this.writeFreshDocument(key, entries);
     }
-    const member: JsonMemberSpan | null = this.scanner.findMember(root, "plugin");
+    const text: string = state.text ?? "";
+    const scanner: ConfigTextScanner = new ConfigTextScanner(text);
+    const member: MemberRegion | null = scanner.findMemberValue(key, 0, text.length);
     if (member === null) {
-      const inserted: string | null = this.insertRootMember(
-        `"plugin": [${JSON.stringify(canonicalEntry)}]`,
-        root,
-      );
-      return inserted === null ? null : this.verified(inserted, true);
+      return this.insertNewMember(text, key, JSON.stringify(entries));
     }
-    if (member.valueKind !== "array") {
-      return null;
+    if (text[member.valueStart] !== "[") {
+      ConfigWarnings.refusal(this.configPath, `"${key}" is present but is not an array.`);
+      return false;
     }
-    const elements: JsonArrayElementSpan[] | null = this.scanner.arrayElements(member.valueStart);
-    if (elements === null) {
-      return null;
+    const parsedRegion: unknown = JsoncParser.parse(text.slice(member.valueStart, member.valueEnd));
+    if (!Array.isArray(parsedRegion)) {
+      ConfigWarnings.refusal(this.configPath, `"${key}" does not contain a readable array.`);
+      return false;
     }
-    for (const element of elements) {
-      if (element.stringValue !== null && PluginNameNormalizer.matches(element.stringValue, packageName)) {
-        return { text: this.text, changed: false };
-      }
+    const insertion: Insertion | null =
+      ConfigSpliceWriter.buildArrayAppendInsertion(text, member.valueStart, member.valueEnd, entries, parsedRegion);
+    if (insertion === null) {
+      ConfigWarnings.refusal(this.configPath, `"${key}" ends in a comment that a splice would corrupt.`);
+      return false;
     }
-    const appended: string | null = this.appendToArray(elements, member.valueEnd, JSON.stringify(canonicalEntry));
-    return appended === null ? null : this.verified(appended, true);
+    return this.applyEdits(text, [{ start: insertion.index, end: insertion.index, replacement: insertion.text }]);
   }
 
-  removePluginEntries(packageName: string): SpliceResult | null {
-    const root: number = this.scanner.rootObjectStart();
-    if (root < 0) {
-      return null;
+  async removeArrayElements(
+    key: string,
+    shouldRemove: (entry: unknown) => Promise<boolean>,
+  ): Promise<boolean> {
+    const state: RawFileState = await this.readRawState();
+    if (!state.present || state.text === null) {
+      return false;
     }
-    const member: JsonMemberSpan | null = this.scanner.findMember(root, "plugin");
-    if (member === null || member.valueKind !== "array") {
-      return { text: this.text, changed: false };
+    const text: string = state.text;
+    const scanner: ConfigTextScanner = new ConfigTextScanner(text);
+    const member: MemberRegion | null = scanner.findMemberValue(key, 0, text.length);
+    if (member === null) {
+      return false;
     }
-    const elements: JsonArrayElementSpan[] | null = this.scanner.arrayElements(member.valueStart);
-    if (elements === null) {
-      return null;
+    if (text[member.valueStart] !== "[") {
+      ConfigWarnings.refusal(this.configPath, `"${key}" is present but is not an array.`);
+      return false;
     }
-    const matching: JsonArrayElementSpan[] = elements.filter(
-      element => element.stringValue !== null && PluginNameNormalizer.matches(element.stringValue, packageName),
-    );
-    if (matching.length === 0) {
-      return { text: this.text, changed: false };
+    const parsedRegion: unknown = JsoncParser.parse(text.slice(member.valueStart, member.valueEnd));
+    if (!Array.isArray(parsedRegion)) {
+      ConfigWarnings.refusal(this.configPath, `"${key}" does not contain a readable array.`);
+      return false;
     }
-    if (matching.length === elements.length) {
-      const removedMember: string | null = this.removeMember(member);
-      return removedMember === null ? null : this.verified(removedMember, true);
+    const regions: ElementRegion[] = scanner.arrayElementRegions(member.valueStart, member.valueEnd);
+    if (regions.length !== parsedRegion.length) {
+      ConfigWarnings.refusal(this.configPath, `"${key}" array elements could not be mapped safely.`);
+      return false;
     }
-    const removals: Array<{ start: number; end: number }> = [];
-    for (const element of matching) {
-      if (element.hasTrailingComma) {
-        const commaIndex: number = this.scanner.skipNoise(element.valueEnd);
-        removals.push({ start: element.valueStart, end: commaIndex + 1 });
+    const removalFlags: boolean[] = [];
+    for (const entry of parsedRegion) {
+      removalFlags.push(await shouldRemove(entry));
+    }
+    const removedCount: number = removalFlags.filter(flag => flag).length;
+    if (removedCount === 0) {
+      return false;
+    }
+    if (removedCount === regions.length) {
+      return this.applyEdits(text, [ConfigSpliceWriter.memberRemovalEdit(text, member)]);
+    }
+    const edits: TextEdit[] = [];
+    for (let index: number = 0; index < regions.length; index += 1) {
+      if (!removalFlags[index]) {
         continue;
       }
-      const precedingComma: number = this.text.lastIndexOf(",", element.valueStart);
-      if (precedingComma < 0) {
+      edits.push(ConfigSpliceWriter.elementRemovalEdit(text, regions, index));
+    }
+    return this.applyEdits(text, edits);
+  }
+
+  async removeMembers(path: readonly string[], memberKeys: readonly string[]): Promise<boolean> {
+    const state: RawFileState = await this.readRawState();
+    if (!state.present || state.text === null) {
+      return false;
+    }
+    const text: string = state.text;
+    const scanner: ConfigTextScanner = new ConfigTextScanner(text);
+    let container: MemberRegion | null = { keyStart: 0, valueStart: 0, valueEnd: text.length };
+    for (const segment of path) {
+      if (container === null) {
+        return false;
+      }
+      container = scanner.findMemberValue(segment, container.valueStart, container.valueEnd);
+    }
+    if (container === null) {
+      return false;
+    }
+    const edits: TextEdit[] = [];
+    for (const memberKey of memberKeys) {
+      const member: MemberRegion | null =
+        scanner.findMemberValue(memberKey, container.valueStart, container.valueEnd);
+      if (member === null) {
+        continue;
+      }
+      edits.push(ConfigSpliceWriter.memberRemovalEdit(text, member));
+    }
+    if (edits.length === 0) {
+      return false;
+    }
+    return this.applyEdits(text, edits);
+  }
+
+  private async readRawState(): Promise<RawFileState> {
+    try {
+      return { present: true, text: await readFile(this.configPath, "utf-8") };
+    } catch (error) {
+      if (ConfigSpliceWriter.isFileNotFoundError(error)) {
+        return { present: false, text: null };
+      }
+      return { present: true, text: null };
+    }
+  }
+
+  private async writeFreshDocument(key: string, entries: readonly unknown[]): Promise<boolean> {
+    const document: string = JSON.stringify({ [key]: entries }, null, 2);
+    return this.writeText(document);
+  }
+
+  private async insertNewMember(text: string, key: string, serializedEntries: string): Promise<boolean> {
+    const parsed: unknown = JsoncParser.parse(text);
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      ConfigWarnings.refusal(this.configPath, "the file is not a JSON object a new key can be spliced into.");
+      return false;
+    }
+    const rootClose: number = ConfigSpliceWriter.lastNonWhitespaceIndex(text);
+    if (rootClose < 0 || text[rootClose] !== "}") {
+      ConfigWarnings.refusal(this.configPath, "the file does not end with a top-level object.");
+      return false;
+    }
+    const beforeClose: number = ConfigSpliceWriter.lastNonWhitespaceIndexBefore(text, rootClose);
+    if (text[beforeClose] === "{") {
+      const memberText: string = `"${key}": ${serializedEntries}`;
+      return this.applyEdits(text, [{ start: rootClose, end: rootClose, replacement: memberText }]);
+    }
+    const indent: string = ConfigSpliceWriter.lineIndentAt(text, beforeClose);
+    const newline: string = text.includes("\r\n") ? "\r\n" : "\n";
+    const memberText: string = `,${newline}${indent}"${key}": ${serializedEntries}`;
+    return this.applyEdits(text, [{ start: beforeClose + 1, end: beforeClose + 1, replacement: memberText }]);
+  }
+
+  private static buildArrayAppendInsertion(
+    text: string,
+    valueStart: number,
+    valueEnd: number,
+    entries: readonly unknown[],
+    parsedRegion: readonly unknown[],
+  ): Insertion | null {
+    const closeIndex: number = valueEnd - 1;
+    const interior: string = text.slice(valueStart + 1, closeIndex);
+    if (parsedRegion.length === 0) {
+      if (interior.includes("//") || interior.includes("/*")) {
         return null;
       }
-      removals.push({ start: precedingComma, end: element.valueEnd });
+      return { index: valueStart + 1, text: entries.map(entry => JSON.stringify(entry)).join(", ") };
     }
-    removals.sort((first, second) => second.start - first.start);
-    let updated: string = this.text;
-    for (const removal of removals) {
-      updated = updated.slice(0, removal.start) + updated.slice(removal.end);
-    }
-    return this.verified(updated, true);
-  }
-
-  addSkillPermissions(skillNames: readonly string[]): SpliceResult | null {
-    const root: number = this.scanner.rootObjectStart();
-    if (root < 0) {
+    const lastContentRelative: number = ConfigSpliceWriter.lastNonWhitespaceIndexIn(interior);
+    const lastContent: number = valueStart + 1 + lastContentRelative;
+    const afterTrailingComma: boolean = text[lastContent] === ",";
+    const gap: string = text.slice(lastContent + 1, closeIndex);
+    if (gap.includes("//") || gap.includes("/*")) {
       return null;
     }
-    const permissionMember: JsonMemberSpan | null = this.scanner.findMember(root, "permission");
-    if (permissionMember === null) {
-      const inserted: string | null = this.insertRootMember(
-        `"permission": ${this.skillObjectText(skillNames)}`,
-        root,
-      );
-      return inserted === null ? null : this.verified(inserted, true);
+    const multiLine: boolean = interior.includes("\n");
+    const newline: string = text.includes("\r\n") ? "\r\n" : "\n";
+    const indent: string = multiLine ? ConfigSpliceWriter.lineIndentAt(text, lastContent) : "";
+    let leading: string = afterTrailingComma ? "" : ",";
+    let joined: string = "";
+    for (const entry of entries) {
+      const separator: string = multiLine ? `${leading}${newline}${indent}` : `${leading} `;
+      joined += `${separator}${JSON.stringify(entry)}`;
+      leading = ",";
     }
-    if (permissionMember.valueKind !== "object") {
-      return null;
-    }
-    const skillMember: JsonMemberSpan | null = this.scanner.findMember(permissionMember.valueStart, "skill");
-    if (skillMember === null) {
-      const inserted: string | null = this.insertMemberIntoObject(
-        permissionMember.valueStart,
-        `"skill": ${this.skillObjectText(skillNames)}`,
-      );
-      return inserted === null ? null : this.verified(inserted, true);
-    }
-    if (skillMember.valueKind !== "object") {
-      return null;
-    }
-    const existing: Record<string, unknown> = ConfigSpliceWriter.readObjectEntries(
-      this.text.slice(skillMember.valueStart, skillMember.valueEnd),
-    );
-    const missing: string[] = skillNames.filter(name => existing[name] !== "allow");
-    if (missing.length === 0) {
-      return { text: this.text, changed: false };
-    }
-    const members: JsonMemberSpan[] | null = this.scanner.objectMembers(skillMember.valueStart);
-    if (members === null) {
-      return null;
-    }
-    const appended: string | null = this.appendToSkillObject(members, skillMember.valueEnd, missing);
-    return appended === null ? null : this.verified(appended, true);
+    return { index: lastContent + 1, text: joined };
   }
 
-  private appendToSkillObject(
-    members: JsonMemberSpan[],
-    objectEnd: number,
-    missing: readonly string[],
-  ): string | null {
-    const entries: string = missing.map(name => `${JSON.stringify(name)}: "allow"`).join(", ");
-    if (members.length === 0) {
-      const closeBracket: number = objectEnd - 1;
-      return this.text.slice(0, closeBracket) + entries + this.text.slice(closeBracket);
+  private static memberRemovalEdit(text: string, member: MemberRegion): TextEdit {
+    const afterValue: number = ConfigTextScanner.skipWhitespaceAndComments(text, member.valueEnd);
+    if (text[afterValue] === ",") {
+      const swallowStart: number = ConfigSpliceWriter.separatorStartBefore(text, member.keyStart);
+      return { start: swallowStart, end: afterValue + 1, replacement: "" };
     }
-    const last: JsonMemberSpan = members[members.length - 1];
-    if (last.hasTrailingComma) {
-      const commaIndex: number = this.scanner.skipNoise(last.valueEnd);
-      return this.text.slice(0, commaIndex + 1) + " " + entries + this.text.slice(commaIndex + 1);
+    const beforeKey: number = ConfigSpliceWriter.lastNonWhitespaceIndexBefore(text, member.keyStart);
+    if (beforeKey >= 0 && text[beforeKey] === ",") {
+      return { start: beforeKey, end: member.valueEnd, replacement: "" };
     }
-    return this.text.slice(0, last.valueEnd) + ", " + entries + this.text.slice(last.valueEnd);
+    return { start: member.keyStart, end: member.valueEnd, replacement: "" };
   }
 
-  private skillObjectText(skillNames: readonly string[]): string {
-    const entries: string = skillNames.map(name => `${JSON.stringify(name)}: "allow"`).join(", ");
-    return `{ ${entries} }`;
+  private static separatorStartBefore(text: string, keyStart: number): number {
+    const beforeKey: number = ConfigSpliceWriter.lastNonWhitespaceIndexBefore(text, keyStart);
+    if (beforeKey < 0) {
+      return keyStart;
+    }
+    const separator: string = text.slice(beforeKey + 1, keyStart);
+    if (separator.includes("//") || separator.includes("/*")) {
+      return keyStart;
+    }
+    return beforeKey + 1;
   }
 
-  private appendToArray(
-    elements: JsonArrayElementSpan[],
-    arrayEnd: number,
-    serializedEntry: string,
-  ): string | null {
-    if (elements.length === 0) {
-      const closeBracket: number = arrayEnd - 1;
-      return this.text.slice(0, closeBracket) + serializedEntry + this.text.slice(closeBracket);
+  private static elementRemovalEdit(text: string, regions: readonly ElementRegion[], index: number): TextEdit {
+    const region: ElementRegion = regions[index];
+    if (index + 1 < regions.length) {
+      return { start: region.start, end: regions[index + 1].start, replacement: "" };
     }
-    const last: JsonArrayElementSpan = elements[elements.length - 1];
-    if (last.hasTrailingComma) {
-      const commaIndex: number = this.scanner.skipNoise(last.valueEnd);
-      return this.text.slice(0, commaIndex + 1) + " " + serializedEntry + this.text.slice(commaIndex + 1);
+    const beforeElement: number = ConfigSpliceWriter.lastNonWhitespaceIndexBefore(text, region.start);
+    if (beforeElement >= 0 && text[beforeElement] === ",") {
+      return { start: beforeElement, end: region.end, replacement: "" };
     }
-    return this.text.slice(0, last.valueEnd) + ", " + serializedEntry + this.text.slice(last.valueEnd);
+    return { start: region.start, end: region.end, replacement: "" };
   }
 
-  private insertRootMember(memberText: string, root: number): string | null {
-    const firstSignificant: number = this.scanner.skipNoise(root + 1);
-    if (firstSignificant < this.text.length && this.text[firstSignificant] === "}") {
-      return this.text.slice(0, firstSignificant) + memberText + this.text.slice(firstSignificant);
-    }
-    const indent: string = this.detectIndentUnit();
-    return this.text.slice(0, root + 1) + `\n${indent}${memberText},` + this.text.slice(root + 1);
-  }
-
-  private insertMemberIntoObject(objectStart: number, memberText: string): string | null {
-    const firstSignificant: number = this.scanner.skipNoise(objectStart + 1);
-    if (firstSignificant < this.text.length && this.text[firstSignificant] === "}") {
-      return this.text.slice(0, firstSignificant) + memberText + this.text.slice(firstSignificant);
-    }
-    const indent: string = this.indentInsideObject(objectStart);
-    return this.text.slice(0, objectStart + 1) + `\n${indent}${memberText},` + this.text.slice(objectStart + 1);
-  }
-
-  private removeMember(member: JsonMemberSpan): string | null {
-    const lineStart: number = this.text.lastIndexOf("\n", member.keyStart) + 1;
-    let end: number = member.valueEnd;
-    let position: number = this.skipHorizontalWhitespace(end);
-    if (this.text[position] === ",") {
-      position += 1;
-      position = this.skipHorizontalWhitespace(position);
-      if (this.text[position] === "\n") {
-        position += 1;
+  private static lastNonWhitespaceIndexIn(scope: string): number {
+    for (let index: number = scope.length - 1; index >= 0; index -= 1) {
+      const character: string = scope[index];
+      if (character !== " " && character !== "\t" && character !== "\n" && character !== "\r") {
+        return index;
       }
-      end = position;
     }
-    return this.text.slice(0, lineStart) + this.text.slice(end);
+    return -1;
   }
 
-  private skipHorizontalWhitespace(index: number): number {
-    let position: number = index;
-    while (position < this.text.length && (this.text[position] === " " || this.text[position] === "\t")) {
-      position += 1;
-    }
-    return position;
+  private static lastNonWhitespaceIndex(text: string): number {
+    return ConfigSpliceWriter.lastNonWhitespaceIndexIn(text);
   }
 
-  private indentInsideObject(objectStart: number): string {
-    const lineStart: number = this.text.lastIndexOf("\n", objectStart) + 1;
-    let whitespace: string = "";
-    let position: number = lineStart;
-    while (position < objectStart && (this.text[position] === " " || this.text[position] === "\t")) {
-      whitespace += this.text[position];
-      position += 1;
+  private static lastNonWhitespaceIndexBefore(text: string, from: number): number {
+    for (let index: number = Math.min(from, text.length) - 1; index >= 0; index -= 1) {
+      const character: string = text[index];
+      if (character !== " " && character !== "\t" && character !== "\n" && character !== "\r") {
+        return index;
+      }
     }
-    return whitespace + this.detectIndentUnit();
+    return -1;
   }
 
-  private detectIndentUnit(): string {
-    const match: RegExpMatchArray | null = this.text.match(/\n([ \t]+)"[A-Za-z_]/);
-    if (match === null || match[1] === undefined) {
-      return "  ";
+  private static lineIndentAt(text: string, position: number): string {
+    const bounded: number = Math.min(position, text.length);
+    const lineStart: number = text.lastIndexOf("\n", Math.max(bounded - 1, 0)) + 1;
+    let indentEnd: number = lineStart;
+    while (indentEnd < text.length && (text[indentEnd] === " " || text[indentEnd] === "\t")) {
+      indentEnd += 1;
     }
-    return match[1];
+    return text.slice(lineStart, indentEnd);
   }
 
-  private static readObjectEntries(serialized: string): Record<string, unknown> {
-    const parsed: unknown | null = JsoncScanner.parseLenient(serialized);
-    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>;
+  private async applyEdits(text: string, edits: readonly TextEdit[]): Promise<boolean> {
+    const ordered: TextEdit[] = [...edits].sort((first, second) => second.start - first.start);
+    let result: string = text;
+    let previousStart: number = Number.POSITIVE_INFINITY;
+    for (const edit of ordered) {
+      if (edit.end > previousStart) {
+        ConfigWarnings.refusal(this.configPath, "the planned edits would overlap.");
+        return false;
+      }
+      result = result.slice(0, edit.start) + edit.replacement + result.slice(edit.end);
+      previousStart = edit.start;
     }
-    return {};
+    return this.writeText(result);
   }
 
-  private verified(text: string, changed: boolean): SpliceResult | null {
-    if (JsoncScanner.parseLenient(text) === null) {
-      return null;
-    }
-    return { text, changed };
+  private async writeText(content: string): Promise<boolean> {
+    await mkdir(dirname(this.configPath), { recursive: true });
+    await writeFile(this.configPath, content);
+    return true;
+  }
+
+  private static isFileNotFoundError(error: unknown): boolean {
+    return (error as NodeJS.ErrnoException).code === "ENOENT";
   }
 }
