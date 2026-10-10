@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { exists, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,6 +10,7 @@ import {
   type Scope,
 } from "../src/installer.ts";
 import { RegistrationDetector } from "../src/registration.ts";
+import { JsoncParser } from "../src/jsonc.ts";
 import { PluginNameNormalizer } from "../src/plugin-name.ts";
 
 const PACKAGE_ROOT: string = join(import.meta.dir, "..");
@@ -74,6 +75,10 @@ async function cleanupSandbox(sandbox: Sandbox): Promise<void> {
     await rm(sandbox.globalDir, { recursive: true });
   }
   delete process.env.XDG_CONFIG_HOME;
+}
+
+function warnMessages(spy: { mock: { calls: Array<Array<unknown>> } }): string[] {
+  return spy.mock.calls.map(call => String(call[0]));
 }
 
 describe("manifest-gated install", () => {
@@ -149,6 +154,7 @@ describe("manifest-gated install", () => {
     const forced = await sandbox.installer.install("local", sandbox.projectDir, {
       addPluginConfig: false,
       migrateRootConfig: false,
+      configurePermissions: true,
       force: true,
     });
     expect(forced.skipped.length).toBe(0);
@@ -170,6 +176,7 @@ describe("manifest-gated install", () => {
     const forced = await sandbox.installer.install("local", sandbox.projectDir, {
       addPluginConfig: false,
       migrateRootConfig: false,
+      configurePermissions: true,
       force: true,
     });
     expect(forced.action).toBe("installed");
@@ -409,6 +416,7 @@ describe("v2 plugins array and legacy plugin key", () => {
     const result = await sandbox.installer.install("local", sandbox.projectDir, {
       addPluginConfig: true,
       migrateRootConfig: false,
+      configurePermissions: true,
       force: false,
     });
 
@@ -484,6 +492,7 @@ describe("CLI-only behaviors at load", () => {
     const result = await sandbox.installer.install("local", sandbox.projectDir, {
       addPluginConfig: true,
       migrateRootConfig: false,
+      configurePermissions: true,
       force: false,
     });
 
@@ -499,6 +508,7 @@ describe("CLI-only behaviors at load", () => {
     const result = await sandbox.installer.install("local", sandbox.projectDir, {
       addPluginConfig: true,
       migrateRootConfig: true,
+      configurePermissions: true,
       force: false,
     });
 
@@ -811,3 +821,230 @@ describe("scope typing sanity", () => {
     expect(scopes.length).toBe(2);
   });
 });
+
+describe("load-path config neutrality", () => {
+  let sandbox: Sandbox;
+
+  beforeEach(async () => {
+    sandbox = await makeSandbox();
+  });
+
+  afterEach(async () => {
+    await cleanupSandbox(sandbox);
+  });
+
+  test("load-options drift rewrites files but leaves the config byte-for-byte", async () => {
+    await sandbox.installer.install("local", sandbox.projectDir, LOAD_INSTALL_OPTIONS);
+    const custom: string = '{\n  "theme": "dark",\n  "plugins": ["something-else"]\n}\n';
+    await writeRawConfig(sandbox.localConfigPath, custom);
+    const manifest: Record<string, unknown> = await readConfig(sandbox.localManifestPath);
+    manifest.version = "0.0.1";
+    await writeFile(sandbox.localManifestPath, JSON.stringify(manifest, null, 2));
+
+    const result = await sandbox.installer.install("local", sandbox.projectDir, LOAD_INSTALL_OPTIONS);
+
+    expect(result.action).toBe("upgraded");
+    expect(await readFile(sandbox.localConfigPath, "utf-8")).toBe(custom);
+    const config: Record<string, unknown> = await readConfig(sandbox.localConfigPath);
+    expect(config.permissions).toBeUndefined();
+  });
+});
+
+describe("splice config writes", () => {
+  let sandbox: Sandbox;
+
+  beforeEach(async () => {
+    sandbox = await makeSandbox();
+  });
+
+  afterEach(async () => {
+    await cleanupSandbox(sandbox);
+  });
+
+  test("CLI install preserves the bytes of a compact one-line config outside the edited regions", async () => {
+    const compact: string = '{"theme":"dark","plugins":["other-pkg"]}';
+    await writeRawConfig(sandbox.localConfigPath, compact);
+
+    const result = await sandbox.installer.install("local", sandbox.projectDir);
+
+    expect(result.permissionConfigured).toBe(true);
+    expect(result.pluginAdded).toBe(true);
+    const after: string = await readFile(sandbox.localConfigPath, "utf-8");
+    expect(after.startsWith('{"theme":"dark","plugins":["other-pkg", ')).toBe(true);
+    const parsed: Record<string, unknown> = JSON.parse(after);
+    expect(parsed.theme).toBe("dark");
+    expect(parsed.plugins).toEqual(["other-pkg", "aurelia-expert@latest"]);
+    expect(parsed.permissions).toHaveLength(SKILL_NAMES.length);
+  });
+
+  test("CLI install appends permission rules after consumer rules without reformatting their region", async () => {
+    const consumerRule: PermissionRule = { action: "shell", resource: "git push *", effect: "deny" };
+    const pretty: string = JSON.stringify({ permissions: [consumerRule], note: "keep me" }, null, 2);
+    await writeRawConfig(sandbox.localConfigPath, pretty);
+
+    await sandbox.installer.install("local", sandbox.projectDir);
+
+    const after: string = await readFile(sandbox.localConfigPath, "utf-8");
+    expect(after.includes('"note": "keep me"')).toBe(true);
+    expect(after.includes('"resource": "git push *"')).toBe(true);
+    const parsed: Record<string, unknown> = JSON.parse(after);
+    const rules: PermissionRule[] = parsed.permissions as PermissionRule[];
+    expect(rules[0]).toEqual(consumerRule);
+    expect(rules).toHaveLength(SKILL_NAMES.length + 1);
+  });
+
+  test("uninstall removes only our array elements and keeps consumer formatting", async () => {
+    const pretty: string = [
+      '{',
+      '  // my plugins',
+      '  "plugins": [',
+      '    "aurelia-expert@latest",',
+      '    "keep-me"',
+      '  ],',
+      '  "theme": "dark"',
+      '}',
+    ].join("\n");
+    await writeRawConfig(sandbox.localConfigPath, pretty);
+
+    const result = await sandbox.installer.uninstall("local", sandbox.projectDir);
+
+    expect(result.pluginRemoved).toBe(true);
+    const after: string = await readFile(sandbox.localConfigPath, "utf-8");
+    expect(after).toBe([
+      '{',
+      '  // my plugins',
+      '  "plugins": [',
+      '    "keep-me"',
+      '  ],',
+      '  "theme": "dark"',
+      '}',
+    ].join("\n"));
+    const parsed: unknown = JsoncParser.parse(after);
+    expect(parsed).toEqual({ plugins: ["keep-me"], theme: "dark" });
+  });
+});
+
+describe("opencode.jsonc detection", () => {
+  let sandbox: Sandbox;
+
+  beforeEach(async () => {
+    sandbox = await makeSandbox();
+  });
+
+  afterEach(async () => {
+    await cleanupSandbox(sandbox);
+  });
+
+  test("a commented jsonc with a trailing comma registers repo-local", async () => {
+    const jsonc: string = [
+      '{',
+      '  // registered by hand',
+      '  "plugins": [',
+      '    "aurelia-expert",',
+      '    // keep the tag below in sync',
+      '  ],',
+      '}',
+    ].join("\n");
+    await writeRawConfig(join(sandbox.projectDir, ".opencode", "opencode.jsonc"), jsonc);
+
+    const context = await RegistrationDetector.detect(sandbox.projectDir);
+
+    expect(context).toBe("repo-local");
+    expect(RegistrationDetector.scopesToEnsure(context)).toEqual(["local"]);
+  });
+
+  test("an unparseable candidate warns once per path and detection continues", async () => {
+    const jsoncPath: string = join(sandbox.projectDir, ".opencode", "opencode.jsonc");
+    const garbage: string = "{ not json at all";
+    await writeRawConfig(jsoncPath, garbage);
+    const spy = spyOn(console, "warn");
+
+    try {
+      const context = await RegistrationDetector.detect(sandbox.projectDir);
+      expect(context).toBe("none");
+      expect(warnMessages(spy).filter(message => message.includes(jsoncPath)).length).toBe(1);
+
+      await RegistrationDetector.detect(sandbox.projectDir);
+
+      expect(warnMessages(spy).filter(message => message.includes(jsoncPath)).length).toBe(1);
+      expect(await readFile(jsoncPath, "utf-8")).toBe(garbage);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  test("a legacy global config.json mentioning the package gets a read-only advisory", async () => {
+    const legacyPath: string = join(sandbox.globalDir, "opencode", "config.json");
+    const legacyBody: string = JSON.stringify({ plugin: ["aurelia-expert"] }, null, 2);
+    await writeRawConfig(legacyPath, legacyBody);
+    const spy = spyOn(console, "warn");
+
+    try {
+      const context = await RegistrationDetector.detect(sandbox.projectDir);
+      expect(context).toBe("none");
+      const advisories: string[] = warnMessages(spy).filter(message => message.includes("config.json"));
+      expect(advisories.length).toBe(1);
+      expect(advisories[0]).toContain("opencode.jsonc");
+
+      await RegistrationDetector.detect(sandbox.projectDir);
+      expect(warnMessages(spy).filter(message => message.includes("config.json")).length).toBe(1);
+      expect(await readFile(legacyPath, "utf-8")).toBe(legacyBody);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  test("CLI install does not duplicate the plugin entry when opencode.jsonc already registers it", async () => {
+    const jsonc: string = JSON.stringify({ plugins: ["aurelia-expert"] }, null, 2);
+    await writeRawConfig(join(sandbox.projectDir, ".opencode", "opencode.jsonc"), jsonc);
+
+    const result = await sandbox.installer.install("local", sandbox.projectDir);
+
+    expect(result.pluginAdded).toBe(false);
+    const config: Record<string, unknown> = await readConfig(sandbox.localConfigPath);
+    expect(config.plugins).toBeUndefined();
+    expect(config.plugin).toBeUndefined();
+  });
+});
+
+describe("vendored relative paths containing @", () => {
+  let sandbox: Sandbox;
+
+  beforeEach(async () => {
+    sandbox = await makeSandbox();
+  });
+
+  afterEach(async () => {
+    await cleanupSandbox(sandbox);
+  });
+
+  test("a relative node_modules path with a scoped @ directory resolves as a path, not an npm spec", async () => {
+    const vendoredRoot: string = await mkdtemp(join(tmpdir(), "aurelia-vendored-"));
+    const packageDir: string = join(vendoredRoot, "node_modules", "@scope", "aurelia-expert");
+    await mkdir(packageDir, { recursive: true });
+    await writeFile(
+      join(packageDir, "package.json"),
+      JSON.stringify({ name: "aurelia-expert", version: "1.0.0" }, null, 2),
+    );
+    await writeConfig(sandbox.localConfigPath, { plugins: ["node_modules/@scope/aurelia-expert"] });
+
+    const previousCwd: string = process.cwd();
+    process.chdir(vendoredRoot);
+    try {
+      const context = await RegistrationDetector.detect(sandbox.projectDir);
+      expect(context).toBe("repo-local");
+    } finally {
+      process.chdir(previousCwd);
+      await rm(vendoredRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("a bare scoped npm spec stays an npm spec and is not resolved as a path", async () => {
+    await writeConfig(sandbox.localConfigPath, { plugins: ["@scope/aurelia-expert"] });
+
+    const context = await RegistrationDetector.detect(sandbox.projectDir);
+
+    expect(context).toBe("none");
+  });
+});
+
