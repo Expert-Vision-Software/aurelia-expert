@@ -111,6 +111,10 @@ jobs:
           bun run check
           bun test
 
+      - name: Verify publishable tarball
+        run: |
+          npm pack --dry-run
+
       - name: Publish to npm
         run: |
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
